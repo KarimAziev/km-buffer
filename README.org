@@ -1,0 +1,37 @@
+* km-buffer
+
+Misc buffers commands.
+
+** Installation
+
+Emacs >= 28.1 is required.
+
+*** Manual
+
+Ensure that you have installed required dependencies:
+
+- ~project~ >= 0.9.4
+- vc (optional)
+
+Download the source code and put it wherever you like, e.g. into =~/.emacs.d/km-buffer/=
+
+#+begin_src shell :eval no
+git clone https://github.com/KarimAziev/km-buffer.git ~/.emacs.d/km-buffer/
+#+end_src
+
+Add the downloaded directory to the load path:
+
+#+begin_src elisp :eval no
+(add-to-list 'load-path "~/.emacs.d/km-buffer/")
+(require 'km-buffer)
+#+end_src
+
+#+begin_src elisp :eval no
+(use-package km-buffer
+  :straight (km-buffer
+             :repo "KarimAziev/km-buffer"
+             :type git
+             :host github)
+  :bind ("C-c M-d" . km-buffer-actions-menu))
+#+end_src
+
