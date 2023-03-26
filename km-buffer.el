@@ -286,6 +286,40 @@ See also `km-buffer-backup-time-format'."
                      (file-name-nondirectory
                       buffer-file-name)))))
 
+(defun km-buffer-view-echo-messages-0 ()
+  "Switch to the *Messages* buffer with recent echo-area messages."
+  (let ((curr (current-buffer))
+        (msg-buff (messages-buffer))
+        (msg-window))
+    (cond ((eq curr msg-buff)
+           (goto-char (point-max))
+           (when (re-search-backward "[^\n\s\t]" nil t 1)
+             (forward-char 1))
+           (recenter-top-bottom))
+          ((setq msg-window (get-buffer-window msg-buff))
+           (select-window msg-window)
+           (goto-char (point-max))
+           (when (re-search-backward "[^\n\s\t]" nil t 1)
+             (forward-char 1))
+           (recenter-top-bottom))
+          (t (switch-to-buffer-other-window msg-buff t)
+             (with-current-buffer msg-buff
+               (goto-char (point-max))
+               (when (re-search-backward "[^\n\s\t]" nil t 1)
+                 (forward-char 1))
+               (recenter-top-bottom))))
+    (with-current-buffer msg-buff
+      (visual-line-mode 1))))
+
+;;;###autoload
+(defun km-buffer-view-echo-messages ()
+  "Switch to the *Messages* buffer with recent echo-area messages."
+  (interactive)
+  (if (minibuffer-window-active-p (selected-window))
+      (with-minibuffer-selected-window
+        (km-buffer-view-echo-messages-0))
+    (km-buffer-view-echo-messages-0)))
+
 ;;;###autoload (autoload 'km-buffer-kill-path-menu "km-buffer.el" nil t)
 (transient-define-prefix km-buffer-kill-path-menu ()
   "Command dispatcher for copying current buffer file name in misc formats."
