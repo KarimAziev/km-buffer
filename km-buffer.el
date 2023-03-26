@@ -391,7 +391,7 @@ See also `km-buffer-backup-time-format'."
    ("k" "Kill current buffer" kill-current-buffer)]
   [:description
    "File actions\n"
-   ("r" km-buffer-reload-buffer
+   ("r" km-buffer-reload-current-buffer
     :description (lambda ()
                    (concat "Reload "
                            (propertize (copy-sequence (or
