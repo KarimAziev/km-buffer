@@ -30,9 +30,8 @@
 ;;; Code:
 
 
-
-
 (declare-function dired-get-marked-files "dired")
+(declare-function dired-copy-file "dired-aux")
 
 (defcustom km-buffer-backup-directory "~/.backups"
   "Directory to save backup files by `km-buffer-make-backup'."
@@ -43,6 +42,7 @@
   "Format given to `format-time-string' which is appended to the filename."
   :type 'directory
   :group 'km)
+
 
 
 ;;;###autoload
@@ -286,6 +286,196 @@ See also `km-buffer-backup-time-format'."
                      (file-name-nondirectory
                       buffer-file-name)))))
 
+(defun km-buffer-minibuffer-get-metadata ()
+  "Return current minibuffer completion metadata."
+  (completion-metadata
+   (buffer-substring-no-properties
+    (minibuffer-prompt-end)
+    (max (minibuffer-prompt-end)
+         (point)))
+   minibuffer-completion-table
+   minibuffer-completion-predicate))
+
+(defun km-buffer-minibuffer-ivy-selected-cand ()
+  "Return the currently selected item in Ivy."
+  (when (and (memq 'ivy--queue-exhibit post-command-hook)
+             (boundp 'ivy-text)
+             (boundp 'ivy--length)
+             (boundp 'ivy-last)
+             (fboundp 'ivy--expand-file-name)
+             (fboundp 'ivy-state-current))
+    (cons
+     (completion-metadata-get (ignore-errors (km-buffer-minibuffer-get-metadata))
+                              'category)
+     (ivy--expand-file-name
+      (if (and (> ivy--length 0)
+               (stringp (ivy-state-current ivy-last)))
+          (ivy-state-current ivy-last)
+        ivy-text)))))
+
+(defun km-buffer-minibuffer-get-default-candidates ()
+  "Return all current completion candidates from the minibuffer."
+  (when (minibufferp)
+    (let* ((all (completion-all-completions
+                 (minibuffer-contents)
+                 minibuffer-completion-table
+                 minibuffer-completion-predicate
+                 (max 0 (- (point)
+                           (minibuffer-prompt-end)))))
+           (last (last all)))
+      (when last (setcdr last nil))
+      (cons
+       (completion-metadata-get (km-buffer-minibuffer-get-metadata) 'category)
+       all))))
+
+(defun km-buffer-get-default-top-minibuffer-completion ()
+  "Target the top completion candidate in the minibuffer.
+Return the category metadatum as the type of the target."
+  (when (and (minibufferp) minibuffer-completion-table)
+    (pcase-let* ((`(,category . ,candidates)
+                  (km-buffer-minibuffer-get-default-candidates))
+                 (contents (minibuffer-contents))
+                 (top (if (test-completion contents
+                                           minibuffer-completion-table
+                                           minibuffer-completion-predicate)
+                          contents
+                        (let ((completions (completion-all-sorted-completions)))
+                          (if (null completions)
+                              contents
+                            (concat
+                             (substring contents
+                                        0 (or (cdr (last completions)) 0))
+                             (car completions)))))))
+      (cons category (or (car (member top candidates)) top)))))
+
+(defvar km-buffer-minibuffer-targets-finders
+  '(km-buffer-minibuffer-ivy-selected-cand
+    km-buffer-get-default-top-minibuffer-completion))
+
+(defun km-buffer-minibuffer-get-current-candidate ()
+  "Return cons filename for current completion candidate."
+  (let (target)
+    (run-hook-wrapped
+     'km-buffer-minibuffer-targets-finders
+     (lambda (fun)
+       (when-let ((result (funcall fun)))
+         (when (and (cdr-safe result)
+                    (stringp (cdr-safe result))
+                    (not (string-empty-p (cdr-safe result))))
+           (setq target result)))
+       (and target (minibufferp))))
+    target))
+
+(defun km-buffer-minibuffer-exit-with-action (action)
+  "Call ACTION with current candidate and exit minibuffer."
+  (pcase-let ((`(,_category . ,current)
+               (km-buffer-minibuffer-get-current-candidate)))
+    (progn (run-with-timer 0.1 nil action current)
+           (abort-minibuffers))))
+
+(defun km-buffer-minibuffer-web-restore-completions-wind ()
+  "Restore *Completions* window height."
+  (when (eq this-command 'minibuffer-next-completion)
+    (remove-hook 'post-command-hook
+                 #'km-buffer-minibuffer-web-restore-completions-wind)
+    (when-let ((win (get-buffer-window "*Completions*" 0)))
+      (fit-window-to-buffer win completions-max-height))))
+
+(defun km-buffer-minibuffer-action-no-exit (action)
+  "Call ACTION with minibuffer candidate in its original window."
+  (pcase-let ((`(,_category . ,current)
+               (km-buffer-minibuffer-get-current-candidate)))
+    (when-let ((win (get-buffer-window "*Completions*" 0)))
+      (minimize-window win)
+      (add-hook 'post-command-hook
+                #'km-buffer-minibuffer-web-restore-completions-wind))
+    (with-minibuffer-selected-window
+      (funcall action current))))
+
+(defun km-buffer-minibuffer-preview-file ()
+  "Call ACTION with minibuffer candidate in its original window."
+  (interactive)
+  (km-buffer-minibuffer-action-no-exit 'find-file))
+
+(defvar km-buffer-minibuffer-file-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map (kbd "C-j")
+                #'km-buffer-minibuffer-preview-file)
+    map))
+
+(defun km-buffer-completing-read-with-keymap (prompt collection &optional keymap
+                                                     predicate require-match
+                                                     initial-input hist def
+                                                     inherit-input-method)
+  "Read COLLECTION in minibuffer with PROMPT and KEYMAP.
+See `completing-read' for PREDICATE REQUIRE-MATCH INITIAL-INPUT HIST DEF
+INHERIT-INPUT-METHOD."
+  (let ((collection (if (stringp (car-safe collection))
+                        (copy-tree collection)
+                      collection)))
+    (minibuffer-with-setup-hook
+        (lambda ()
+          (when (minibufferp)
+            (when keymap
+              (let ((map (make-composed-keymap keymap
+                                               (current-local-map))))
+                (use-local-map map)))))
+      (completing-read prompt
+                       collection
+                       predicate
+                       require-match initial-input hist
+                       def inherit-input-method))))
+
+;;;###autoload
+(defun km-buffer-get-active-buffers-dirs ()
+  "Return list of uniq default directories from all buffers."
+  (let* ((curr-buf (current-buffer))
+         (live-buffers (seq-sort-by (lambda (it)
+                                      (if (get-buffer-window it)
+                                          (if (eq curr-buf it)
+                                              1
+                                            2)
+                                        -1))
+                                    #'>
+                                    (buffer-list))))
+    (delete-dups
+     (remove nil (mapcar (lambda (buff)
+                           (when-let ((dir (buffer-local-value
+                                            'default-directory
+                                            buff)))
+                             (unless (file-remote-p dir)
+                               (expand-file-name dir))))
+                         live-buffers)))))
+
+(defun km-buffer-read-active-buffers-directory (prompt)
+  "Read directory name with PROMPT and completing directories from all buffers."
+  (km-buffer-completing-read-with-keymap
+   prompt
+   (km-buffer-get-active-buffers-dirs)
+   km-buffer-minibuffer-file-map))
+
+(defun km-buffer-f-read-dir (prompt)
+  "Read CHOICES with PROMPT and ARGS with completion."
+  (require 'multi-source nil t)
+  (if (fboundp 'multi-source-read)
+      (multi-source-read `(("Directory" km-buffer-read-active-buffers-directory
+                            ,prompt)
+                           ("Other directory" read-directory-name ,prompt)))
+    (km-buffer-read-active-buffers-directory prompt)))
+
+;;;###autoload
+(defun km-buffer-copy-file (&optional source-file target-directory)
+  "Copy SOURCE-FILE to TARGET-DIRECTORY.
+SOURCE-FILE can be also list of files to copy."
+  (interactive (list
+                (read-file-name "File to copy: " nil nil t
+                                (when buffer-file-name
+                                  (file-name-nondirectory
+                                   buffer-file-name)))
+                (km-buffer-f-read-dir "Copy to: ")))
+  (require 'dired)
+  (dired-copy-file source-file target-directory 1))
+
 (defun km-buffer-view-echo-messages-0 ()
   "Switch to the *Messages* buffer with recent echo-area messages."
   (let ((curr (current-buffer))
@@ -324,12 +514,12 @@ See also `km-buffer-backup-time-format'."
 (transient-define-prefix km-buffer-kill-path-menu ()
   "Command dispatcher for copying current buffer file name in misc formats."
   ["Copy filename"
-   ("f"  km-buffer-kill-absolute-filename
+   ("f" km-buffer-kill-absolute-filename
     :description (lambda ()
                    (concat (or buffer-file-name
                                "")))
     :inapt-if-not buffer-file-name)
-   ("a"  km-buffer-kill-absolute-filename-abbreviated
+   ("a" km-buffer-kill-absolute-filename-abbreviated
     :description (lambda ()
                    (concat (or (and buffer-file-name
                                     (abbreviate-file-name buffer-file-name))
@@ -338,7 +528,7 @@ See also `km-buffer-backup-time-format'."
                     (and buffer-file-name
                          (abbreviate-file-name buffer-file-name))))]
   ["Copy directory"
-   ("d"  km-buffer-kill-directory
+   ("d" km-buffer-kill-directory
     :description (lambda ()
                    (concat (or (if buffer-file-name
                                    (file-name-directory buffer-file-name)
@@ -348,7 +538,7 @@ See also `km-buffer-backup-time-format'."
                     (if buffer-file-name
                         (file-name-directory buffer-file-name)
                       default-directory)))
-   ("D"  km-buffer-kill-directory-abbreviated
+   ("D" km-buffer-kill-directory-abbreviated
     :description (lambda ()
                    (abbreviate-file-name
                     (concat (or (if buffer-file-name
@@ -361,8 +551,7 @@ See also `km-buffer-backup-time-format'."
                         (file-name-directory buffer-file-name)
                       default-directory)))]
   ["Copy relative filename"
-   ("p"
-    km-buffer-kill-current-file-relative-project-name
+   ("p" km-buffer-kill-current-file-relative-project-name
     :description (lambda ()
                    (or (km-buffer-current-file-relative-project-name)
                        "No project"))
@@ -370,17 +559,16 @@ See also `km-buffer-backup-time-format'."
     :if (lambda ()
           (not (equal (km-buffer-file-name--nondirectory)
                       (km-buffer-current-file-relative-project-name)))))
-   ("n"  km-buffer-kill-file-name-nondirectory
+   ("n" km-buffer-kill-file-name-nondirectory
     :description (lambda ()
                    (concat (or (km-buffer-file-name--nondirectory)
                                "")))
     :inapt-if-not km-buffer-file-name--nondirectory)
-   ("b"  km-buffer-kill-current-filename-base
+   ("b" km-buffer-kill-current-filename-base
     :description (lambda ()
                    (concat (or (km-buffer-current-file--basename)
                                "")))
     :inapt-if-not buffer-file-name)])
-
 
 ;;;###autoload (autoload 'km-buffer-actions-menu "km-buffer.el" nil t)
 (transient-define-prefix km-buffer-actions-menu ()
@@ -421,7 +609,8 @@ See also `km-buffer-backup-time-format'."
                                                              buffer-file-name))
                                                        ""))
                                        'face 'transient-argument)))
-    :inapt-if-not buffer-file-name)]
+    :inapt-if-not buffer-file-name)
+   ("w" "Copy" km-buffer-copy-file)]
   ["Backup"
    ("b" km-buffer-make-backup
     :description
@@ -433,7 +622,7 @@ See also `km-buffer-backup-time-format'."
                                         buffer-file-name))
                                   ""))
                'face 'transient-argument))))
-   ("f" "Find in backups" km-buffer-find-backup-file
+   ("F" "Find in backups" km-buffer-find-backup-file
     :inapt-if-not (lambda ()
                     (file-exists-p km-buffer-backup-directory)))
    ("d" "Jump to backup directory" km-buffer-find-backup-dir
@@ -449,7 +638,7 @@ See also `km-buffer-backup-time-format'."
                                 (regexp-quote (file-name-nondirectory
                                                buffer-file-name))))))))]
   ["Misc"
-   ("p" "Copy filename" km-buffer-kill-path-menu)
+   ("f" "Copy filename" km-buffer-kill-path-menu)
    ("s" "Open sqlite file" km-buffer-sqlite-open-file
     :if sqlite-available-p)])
 
