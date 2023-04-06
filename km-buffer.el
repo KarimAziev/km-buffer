@@ -468,10 +468,27 @@ INHERIT-INPUT-METHOD."
   "Copy SOURCE-FILE to TARGET-DIRECTORY.
 SOURCE-FILE can be also list of files to copy."
   (interactive (list
-                (read-file-name "File to copy: " nil nil t
-                                (when buffer-file-name
-                                  (file-name-nondirectory
-                                   buffer-file-name)))
+                (if-let* ((url
+                           (when (derived-mode-p 'xwidget-webkit-mode)
+                             (xwidget-webkit-uri
+                              (when (fboundp
+                                     'xwidget-webkit-current-session)
+                                (xwidget-webkit-current-session)))))
+                          (file (when (string-prefix-p
+                                       "file:///"
+                                       url)
+                                  (replace-regexp-in-string
+                                   "^file:///" "" url)))
+                          (dir (file-name-directory file)))
+                    (read-file-name "File to copy: " dir
+                                    nil
+                                    t
+                                    (file-name-nondirectory
+                                     file))
+                  (read-file-name "File to copy: " nil nil t
+                                  (when buffer-file-name
+                                    (file-name-nondirectory
+                                     buffer-file-name))))
                 (km-buffer-f-read-dir "Copy to: ")))
   (require 'dired)
   (dired-copy-file source-file target-directory 1))
