@@ -7,6 +7,7 @@
 ;; Version: 0.1.0
 ;; Keywords: tools
 ;; Package-Requires: ((emacs "28.1") (project "0.9.4"))
+;; SPDX-License-Identifier: GPL-3.0-or-later
 
 ;; This file is NOT part of GNU Emacs.
 
@@ -93,11 +94,10 @@
 (defun km-buffer-get-parent-target-dir (&optional dont-create)
   "Return directory in TARGET-DIR with name of SOURCE-DIR.
 If DONT-CREATE is non nil, don't create it if it doesn't exists."
-  (let* ((containing-dir default-directory)
-         (backup-container
-          (format "%s/%s"
-                  km-buffer-backup-directory
-                  containing-dir)))
+  (let ((backup-container
+         (format "%s/%s"
+                 km-buffer-backup-directory
+                 default-directory)))
     (unless (or dont-create
                 (file-exists-p backup-container))
       (make-directory backup-container t))
@@ -145,40 +145,69 @@ If DONT-CREATE is non nil, don't create it if it doesn't exists."
                                      buffer-file-name))
                       backup-container))))
 
-
 ;;;###autoload
-(defun km-buffer-make-backup ()
+(defun km-buffer-backup-marked-files ()
   "Make a backup copy of current file or `dired' marked files.
 If in `dired', backup current file or marked files.
 See also `km-buffer-backup-time-format'."
   (interactive)
-  (let ((new-file-name-base))
-    (when buffer-file-name
-      (setq new-file-name-base (concat (file-name-nondirectory
-                                        buffer-file-name)
-                                       "~"
-                                       (format-time-string
-                                        km-buffer-backup-time-format))))
-    (when (and km-buffer-backup-directory
-               (not (file-exists-p km-buffer-backup-directory)))
-      (make-directory km-buffer-backup-directory t))
-    (if-let ((dir (and new-file-name-base
-                       (km-buffer-get-parent-target-dir))))
+  (let ((alist (mapcar (lambda (x)
+                         (let ((backup-name
+                                (if (not (file-directory-p x))
+                                    (expand-file-name
+                                     (concat
+                                      (file-name-nondirectory
+                                       x)
+                                      "~"
+                                      (format-time-string
+                                       km-buffer-backup-time-format))
+                                     (km-buffer-get-parent-target-dir))
+                                  (concat
+                                   (expand-file-name
+                                    (car
+                                     (seq-drop-while
+                                      #'string-empty-p
+                                      (reverse
+                                       (file-name-split
+                                        x))))
+                                    (km-buffer-get-parent-target-dir))
+                                   "~"
+                                   (format-time-string
+                                    km-buffer-backup-time-format)))))
+                           (cons x backup-name)))
+                       (dired-get-marked-files))))
+    (dolist (cell alist)
+      (message "Copying %s to %s" (car cell)
+               (cdr cell))
+      (dired-copy-file (car cell)
+                       (cdr cell)
+                       1))))
+;;;###autoload
+(defun km-buffer-make-backup ()
+  "Make a backup copy `dired' marked files.
+See also `km-buffer-backup-time-format'."
+  (interactive)
+  (if (derived-mode-p 'dired-mode)
+      (km-buffer-backup-marked-files)
+    (let ((new-file-name-base))
+      (when buffer-file-name
+        (setq new-file-name-base (concat (file-name-nondirectory
+                                          buffer-file-name)
+                                         "~"
+                                         (format-time-string
+                                          km-buffer-backup-time-format))))
+      (when (and km-buffer-backup-directory
+                 (not (file-exists-p km-buffer-backup-directory)))
+        (make-directory km-buffer-backup-directory t))
+      (when-let ((dir (and new-file-name-base
+                           (km-buffer-get-parent-target-dir))))
         (let ((backup-name
                (expand-file-name new-file-name-base dir)))
           (unless (file-exists-p dir)
             (make-directory dir t))
           (copy-file buffer-file-name backup-name t)
           (message " %s"(concat "Backup saved at: "
-                                backup-name)))
-      (when (eq major-mode 'dired-mode)
-        (mapc (lambda (x)
-                (let ((backup-name
-                       (concat x "~" (format-time-string
-                                      km-buffer-backup-time-format)
-                               "~")))
-                  (copy-file x backup-name t)))
-              (dired-get-marked-files))))))
+                                backup-name)))))))
 
 (defun km-buffer--kill-fn-result (fn &rest args)
   "Kill result of applying FN with ARGS or show ERR-MESSAGE."
@@ -392,6 +421,7 @@ Return the category metadatum as the type of the target."
     (with-minibuffer-selected-window
       (funcall action current))))
 
+;;;###autoload
 (defun km-buffer-minibuffer-preview-file ()
   "Call ACTION with minibuffer candidate in its original window."
   (interactive)
