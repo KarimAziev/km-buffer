@@ -561,7 +561,7 @@ SOURCE-FILE can be also list of files to copy."
 (transient-define-prefix km-buffer-kill-path-menu ()
   "Command dispatcher for copying current buffer file name in misc formats."
   ["Copy filename"
-   ("f" km-buffer-kill-absolute-filename
+   ("w" km-buffer-kill-absolute-filename
     :description (lambda ()
                    (concat (or buffer-file-name
                                "")))
@@ -657,7 +657,7 @@ SOURCE-FILE can be also list of files to copy."
                                                        ""))
                                        'face 'transient-argument)))
     :inapt-if-not buffer-file-name)
-   ("w" "Copy" km-buffer-copy-file)]
+   ("c" "Copy" km-buffer-copy-file)]
   ["Backup"
    ("b" km-buffer-make-backup
     :description
@@ -685,7 +685,7 @@ SOURCE-FILE can be also list of files to copy."
                                 (regexp-quote (file-name-nondirectory
                                                buffer-file-name))))))))]
   ["Misc"
-   ("f" "Copy filename" km-buffer-kill-path-menu)
+   ("w" "Copy filename" km-buffer-kill-path-menu)
    ("s" "Open sqlite file" km-buffer-sqlite-open-file
     :if sqlite-available-p)])
 
