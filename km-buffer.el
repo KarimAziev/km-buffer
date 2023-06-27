@@ -44,7 +44,64 @@
   :type 'directory
   :group 'km)
 
+(defcustom km-buffer-extra-transient-suffixes '(("p" "Pandoc Menu"
+                                                 pandoc-mini-menu)
+                                                ("o" "Pandoc Import to org"
+                                                 org-pandoc-import-to-org)
+                                                ("t" "Sudo Edit File"
+                                                 sudo-edit-find-file)
+                                                ("S" "Sudo Edit This File"
+                                                 sudo-edit)
+                                                ("C" "Chmod" chmod-menu)
+                                                ("i" "File Info" file-info-show))
+  "Extra suffixes to add in `km-buffer-actions-menu'."
+  :group 'sisyphus
+  :type '(repeat (list :tag "Suffix"
+                       (string :tag "Key")
+                       (string :tag "Description")
+                       (function :tag "Command"))))
 
+;;;###autoload (autoload 'km-buffer-pandoc-import-transient "km-buffer.el" nil t)
+(transient-define-prefix km-buffer-pandoc-import-transient ()
+  "Command dispatcher for `org-pandoc-import'."
+  [:if (lambda ()
+         (require 'org-pandoc-import nil t)
+         (featurep 'org-pandoc-import))
+       [("t"
+         org-pandoc-import-transient-mode
+         :description (lambda ()
+                        (concat "Import transient mode "
+                                (if
+                                    (bound-and-true-p
+                                     org-pandoc-import-transient-mode)
+                                    (propertize
+                                     "(on) "
+                                     'face
+                                     'success)
+                                  (propertize
+                                   "(off) "
+                                   'face
+                                   'error)))))
+        ("o" "to org" org-pandoc-import-to-org)
+        ("a" "as org" org-pandoc-import-as-org)
+        ("ca" "csv-as-org" org-pandoc-import-csv-as-org)
+        ("co" "csv-to-org" org-pandoc-import-csv-to-org)
+        ("da" "odt-as-org" org-pandoc-import-odt-as-org)
+        ("do" "odt-to-org" org-pandoc-import-odt-to-org)
+        ("ma" "markdown-as-org" org-pandoc-import-markdown-as-org)
+        ("md" "markdown-to-org" org-pandoc-import-markdown-to-org)
+        ("rd" "rmarkdown-as-org" org-pandoc-import-rmarkdown-as-org)
+        ("rm" "rmarkdown-to-org" org-pandoc-import-rmarkdown-to-org)]
+       [("ro" "rst-to-org" org-pandoc-import-rst-to-org)
+        ("va" "tsv-as-org" org-pandoc-import-tsv-as-org)
+        ("vo" "tsv-to-org" org-pandoc-import-tsv-to-org)
+        ("xa" "docx-as-org" org-pandoc-import-docx-as-org)
+        ("xo" "docx-to-org" org-pandoc-import-docx-to-org)
+        ("ia" "ipynb-as-org" org-pandoc-import-ipynb-as-org)
+        ("io" "ipynb-to-org" org-pandoc-import-ipynb-to-org)
+        ("la" "latex-as-org" org-pandoc-import-latex-as-org)
+        ("lo" "latex-to-org" org-pandoc-import-latex-to-org)
+        ("ra" "rst-as-org" org-pandoc-import-rst-as-org)]])
 
 ;;;###autoload
 (defun km-buffer-delete-current-buffer-file ()
@@ -103,26 +160,31 @@ If DONT-CREATE is non nil, don't create it if it doesn't exists."
       (make-directory backup-container t))
     backup-container))
 
+(defun km-buffer-backup-directory-exists-p ()
+  "Return non-nil whether `km-buffer-backup-directory' is existing directory."
+  (and km-buffer-backup-directory
+       (file-exists-p km-buffer-backup-directory)))
+
 
 ;;;###autoload
 (defun km-buffer-find-backup-file ()
   "Find a file in `km-buffer-backup-directory'."
   (interactive)
-  (if (not (file-exists-p km-buffer-backup-directory))
-      (message "Directory %s doesn't exist"
-               km-buffer-backup-directory)
-    (completing-read "File: "
-                     (directory-files-recursively
-                      km-buffer-backup-directory
-                      directory-files-no-dot-files-regexp
-                      nil))))
+  (if (km-buffer-backup-directory-exists-p)
+      (completing-read "File: "
+                       (directory-files-recursively
+                        km-buffer-backup-directory
+                        directory-files-no-dot-files-regexp
+                        nil))
+    (message "Directory %s doesn't exist"
+             km-buffer-backup-directory)))
 
 
 ;;;###autoload
 (defun km-buffer-find-backup-dir ()
   "Find a backup mirror of current file."
   (interactive)
-  (if (file-exists-p km-buffer-backup-directory)
+  (if (km-buffer-backup-directory-exists-p)
       (find-file km-buffer-backup-directory)
     (message "Directory %s doesn't exist"
              km-buffer-backup-directory)))
@@ -182,6 +244,7 @@ See also `km-buffer-backup-time-format'."
       (dired-copy-file (car cell)
                        (cdr cell)
                        1))))
+
 ;;;###autoload
 (defun km-buffer-make-backup ()
   "Make a backup copy `dired' marked files.
@@ -197,7 +260,7 @@ See also `km-buffer-backup-time-format'."
                                          (format-time-string
                                           km-buffer-backup-time-format))))
       (when (and km-buffer-backup-directory
-                 (not (file-exists-p km-buffer-backup-directory)))
+                 (not (km-buffer-backup-directory-exists-p)))
         (make-directory km-buffer-backup-directory t))
       (when-let ((dir (and new-file-name-base
                            (km-buffer-get-parent-target-dir))))
@@ -504,11 +567,12 @@ SOURCE-FILE can be also list of files to copy."
                               (when (fboundp
                                      'xwidget-webkit-current-session)
                                 (xwidget-webkit-current-session)))))
-                          (file (when (string-prefix-p
-                                       "file:///"
-                                       url)
-                                  (replace-regexp-in-string
-                                   "^file:///" "" url)))
+                          (file
+                           (when (string-prefix-p
+                                  "file:///"
+                                  url)
+                             (replace-regexp-in-string
+                              "^file:///" "" url)))
                           (dir (file-name-directory file)))
                     (read-file-name "File to copy: " dir
                                     nil
@@ -617,6 +681,44 @@ SOURCE-FILE can be also list of files to copy."
                                "")))
     :inapt-if-not buffer-file-name)])
 
+(defun km-buffer-menu-make-file-action-description (label)
+  "Return LABEL concatenated with fontified filename of the current buffer."
+  (concat label
+          " "
+          (or
+           (if buffer-file-name
+               (propertize (abbreviate-file-name
+                            buffer-file-name)
+                           'face 'transient-argument))
+           "")))
+
+(defun km-buffer-transient-suffixes-watcher (_symbol newval _operation _buffer)
+  "Variable watcher to update transient prefix `magit-tag' with NEWVAL."
+  (let* ((layout (get 'km-buffer-actions-menu 'transient--layout))
+         (len (length layout)))
+    (when-let ((suffix-idx (catch 'found
+                             (dotimes (idx len)
+                               (let ((group (nth idx layout)))
+                                 (when (and (vectorp group)
+                                            (eq :description
+                                                (car-safe (aref group 2)))
+                                            (equal
+                                             (cadr (aref group 2))
+                                             "Sisyphus"))
+                                   (throw 'found idx)))))))
+      (transient-remove-suffix 'magit-tag (list suffix-idx))))
+  (when newval
+    (transient-append-suffix 'magit-tag
+      (list
+       (let ((i (1- (length (get 'magit-tag 'transient--layout)))))
+         (if (>= i 0)
+             i
+           0)))
+      (apply #'vector
+             (append
+              (list "Sisyphus")
+              newval)))))
+
 ;;;###autoload (autoload 'km-buffer-actions-menu "km-buffer.el" nil t)
 (transient-define-prefix km-buffer-actions-menu ()
   "Command dispatcher with buffer commands."
@@ -628,53 +730,27 @@ SOURCE-FILE can be also list of files to copy."
    "File actions\n"
    ("r" km-buffer-reload-current-buffer
     :description (lambda ()
-                   (concat "Reload "
-                           (propertize (copy-sequence (or
-                                                       (and buffer-file-name
-                                                            (abbreviate-file-name
-                                                             buffer-file-name))
-                                                       ""))
-                                       'face 'transient-argument)))
+                   (km-buffer-menu-make-file-action-description "Reload"))
     :inapt-if-not buffer-file-name)
    ("D"
     km-buffer-delete-current-buffer-file
     :description (lambda ()
-                   (concat "Delete "
-                           (propertize (copy-sequence (or
-                                                       (and buffer-file-name
-                                                            (abbreviate-file-name
-                                                             buffer-file-name))
-                                                       ""))
-                                       'face 'transient-argument)))
+                   (km-buffer-menu-make-file-action-description "Delete"))
     :inapt-if-not buffer-file-name)
    ("R" km-buffer-rename-current-buffer-file
     :description (lambda ()
-                   (concat "Rename "
-                           (propertize (copy-sequence (or
-                                                       (and buffer-file-name
-                                                            (abbreviate-file-name
-                                                             buffer-file-name))
-                                                       ""))
-                                       'face 'transient-argument)))
+                   (km-buffer-menu-make-file-action-description "Rename"))
     :inapt-if-not buffer-file-name)
    ("c" "Copy" km-buffer-copy-file)]
   ["Backup"
    ("b" km-buffer-make-backup
     :description
     (lambda ()
-      (concat "Backup "
-              (propertize
-               (copy-sequence (or (and buffer-file-name
-                                       (abbreviate-file-name
-                                        buffer-file-name))
-                                  ""))
-               'face 'transient-argument))))
+      (km-buffer-menu-make-file-action-description "Backup")))
    ("F" "Find in backups" km-buffer-find-backup-file
-    :inapt-if-not (lambda ()
-                    (file-exists-p km-buffer-backup-directory)))
+    :inapt-if-not km-buffer-backup-directory-exists-p)
    ("d" "Jump to backup directory" km-buffer-find-backup-dir
-    :inapt-if-not (lambda ()
-                    (file-exists-p km-buffer-backup-directory)))
+    :inapt-if-not km-buffer-backup-directory-exists-p)
    ("m" "Find backup mirror" km-buffer-find-backup-mirror
     :inapt-if-not
     (lambda ()
@@ -687,7 +763,19 @@ SOURCE-FILE can be also list of files to copy."
   ["Misc"
    ("w" "Copy filename" km-buffer-kill-path-menu)
    ("s" "Open sqlite file" km-buffer-sqlite-open-file
-    :if sqlite-available-p)])
+    :if sqlite-available-p)
+   ("I" "Pandoc Import Menu" km-buffer-pandoc-import-transient
+    :if (lambda ()
+          (require 'org-pandoc-import nil t)
+          (featurep 'org-pandoc-import)))]
+  [:setup-children
+   (lambda (_args)
+     (transient-parse-suffixes
+      transient--prefix
+      (apply #'vector
+             (seq-filter (lambda (l)
+                           (fboundp (car (last l))))
+                         km-buffer-extra-transient-suffixes))))])
 
 (provide 'km-buffer)
 ;;; km-buffer.el ends here
