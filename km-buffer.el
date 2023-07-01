@@ -108,12 +108,14 @@
 (defun km-buffer-delete-current-buffer-file ()
   "Remove file and kill current buffer without prompt."
   (interactive)
-  (when-let* ((buffer (current-buffer))
-              (filename (buffer-file-name buffer)))
+  (let* ((buffer (current-buffer))
+         (filename (buffer-file-name buffer)))
     (when (and buffer (buffer-live-p buffer))
-      (save-buffer)
+      (when filename
+        (save-buffer))
       (kill-buffer buffer))
-    (delete-file filename t)))
+    (when filename
+      (delete-file filename t))))
 
 
 ;;;###autoload
@@ -208,6 +210,35 @@ If DONT-CREATE is non nil, don't create it if it doesn't exists."
                                      buffer-file-name))
                       backup-container))))
 
+(defun km-buffer-file-name-split (filename)
+  "Return a list of all the components of FILENAME.
+On most systems, this will be true:
+
+  (equal (string-join (file-name-split filename) \"/\") filename)"
+  (if (fboundp 'file-name-split)
+      (file-name-split filename)
+    (let ((components nil))
+    ;; If this is a directory file name, then we have a null file name
+    ;; at the end.
+      (when (directory-name-p filename)
+        (push "" components)
+        (setq filename (directory-file-name filename)))
+        ;; Loop, chopping off components.
+      (while (length> filename 0)
+        (push (file-name-nondirectory filename) components)
+        (let ((dir (file-name-directory filename)))
+          (setq filename (and dir (directory-file-name dir)))
+          ;; If there's nothing left to peel off, we're at the root and
+          ;; we can stop.
+          (when (and dir (equal dir filename))
+            (push (if (equal dir "") ""
+            ;; On Windows, the first component might be "c:" or
+            ;; the like.
+                    (substring dir 0 -1))
+                  components)
+            (setq filename nil))))
+      components)))
+
 ;;;###autoload
 (defun km-buffer-backup-marked-files ()
   "Make a backup copy of current file or `dired' marked files.
@@ -231,7 +262,7 @@ See also `km-buffer-backup-time-format'."
                                      (seq-drop-while
                                       #'string-empty-p
                                       (reverse
-                                       (file-name-split
+                                       (km-buffer-file-name-split
                                         x))))
                                     (km-buffer-get-parent-target-dir))
                                    "~"
@@ -373,11 +404,12 @@ See also `km-buffer-backup-time-format'."
 (defun km-buffer-sqlite-open-file ()
   "Open current file with `sqlite-mode-open-file'."
   (interactive)
-  (sqlite-mode-open-file
-   (read-file-name "SQLite file name: "
-                   (when buffer-file-name
-                     (file-name-nondirectory
-                      buffer-file-name)))))
+  (when (fboundp 'sqlite-mode-open-file)
+    (sqlite-mode-open-file
+     (read-file-name "SQLite file name: "
+                     (when buffer-file-name
+                       (file-name-nondirectory
+                        buffer-file-name))))))
 
 (defun km-buffer-minibuffer-get-metadata ()
   "Return current minibuffer completion metadata."
@@ -472,7 +504,9 @@ Return the category metadatum as the type of the target."
     (remove-hook 'post-command-hook
                  #'km-buffer-minibuffer-web-restore-completions-wind)
     (when-let ((win (get-buffer-window "*Completions*" 0)))
-      (fit-window-to-buffer win completions-max-height))))
+      (when (and (boundp 'completions-max-height)
+                 (numberp completions-max-height))
+        (fit-window-to-buffer win completions-max-height)))))
 
 (defun km-buffer-minibuffer-action-no-exit (action)
   "Call ACTION with minibuffer candidate in its original window."
