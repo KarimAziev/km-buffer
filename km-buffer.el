@@ -30,9 +30,10 @@
 
 ;;; Code:
 
-
+(require 'transient)
 (declare-function dired-get-marked-files "dired")
 (declare-function dired-copy-file "dired-aux")
+
 
 (defcustom km-buffer-backup-directory "~/.backups"
   "Directory to save backup files by `km-buffer-make-backup'."
