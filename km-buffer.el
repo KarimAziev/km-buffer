@@ -38,12 +38,12 @@
 (defcustom km-buffer-backup-directory "~/.backups"
   "Directory to save backup files by `km-buffer-make-backup'."
   :type 'directory
-  :group 'km)
+  :group 'km-buffer)
 
 (defcustom km-buffer-backup-time-format "%Y_%m_%d_%H_%M_%S"
   "Format given to `format-time-string' which is appended to the filename."
   :type 'directory
-  :group 'km)
+  :group 'km-buffer)
 
 
 (defcustom km-buffer-extra-transient-suffixes '(("p" "Pandoc Menu"
