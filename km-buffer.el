@@ -112,7 +112,8 @@
          (filename (buffer-file-name buffer)))
     (when (and buffer (buffer-live-p buffer))
       (when filename
-        (save-buffer))
+        (save-buffer)
+        (km-buffer-make-backup))
       (kill-buffer buffer))
     (when filename
       (delete-file filename t))))
@@ -168,34 +169,136 @@ If DONT-CREATE is non nil, don't create it if it doesn't exists."
   (and km-buffer-backup-directory
        (file-exists-p km-buffer-backup-directory)))
 
+(defvar km-buffer-minibuffer-file-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map (kbd "C-j")
+                #'km-buffer-minibuffer-preview-file)
+    (define-key map (kbd "C-c C-o")
+                #'km-buffer-minibuffer-find-file-other-window-and-exit)
+    map))
+
 
 ;;;###autoload
 (defun km-buffer-find-backup-file ()
   "Find a file in `km-buffer-backup-directory'."
   (interactive)
   (if (km-buffer-backup-directory-exists-p)
-      (completing-read "File: "
-                       (directory-files-recursively
-                        km-buffer-backup-directory
-                        directory-files-no-dot-files-regexp
-                        nil))
+      (km-buffer-completing-read-with-keymap
+       "File: "
+       (directory-files-recursively
+        km-buffer-backup-directory
+        directory-files-no-dot-files-regexp
+        nil)
+       km-buffer-minibuffer-file-map)
     (message "Directory %s doesn't exist"
              km-buffer-backup-directory)))
 
 
 ;;;###autoload
 (defun km-buffer-find-backup-dir ()
-  "Find a backup mirror of current file."
+  "Find a backup directory `km-buffer-backup-directory'."
   (interactive)
   (if (km-buffer-backup-directory-exists-p)
       (find-file km-buffer-backup-directory)
     (message "Directory %s doesn't exist"
              km-buffer-backup-directory)))
 
+(defun km-buffer-get-empty-dirs-or-subdirs (directory)
+  "Search for empty directories or subdirectories in DIRECTORY."
+  (let ((result))
+    (dolist (file (directory-files directory t
+                                   directory-files-no-dot-files-regexp))
+      (when (and (file-directory-p file)
+                 (km-buffer-is-dir-empty-p file))
+        (push file result)))
+    result))
+
+(defun km-buffer-is-dir-empty-p (file)
+  "Return t if FILE is an empty directory or a directory with empty subdirs."
+  (cond ((not (file-directory-p file))
+         nil)
+        (t
+         (or (directory-empty-p file)
+             (seq-every-p
+              (lambda (f)
+                (km-buffer-is-dir-empty-p f))
+              (directory-files
+               file t
+               directory-files-no-dot-files-regexp))))))
+
 
 ;;;###autoload
+(defun km-buffer-remove-empty-dirs ()
+  "Query remove empty directories or subdirectories in default directory."
+  (interactive)
+  (let ((dirs (km-buffer-get-empty-dirs-or-subdirs default-directory))
+        (dir)
+        (all))
+    (while (setq dir (pop dirs))
+      (when (and (derived-mode-p 'dired-revert)
+                 (fboundp 'dired-revert))
+        (dired-revert nil nil))
+      (if all
+          (delete-directory dir t)
+        (pcase
+            (car (read-multiple-choice
+                  (if (directory-empty-p dir)
+                      (format "Remove directory %s?" dir)
+                    (format "Remove directory %s with all subdirectories?" dir))
+                  `((?y "yes")
+                    (?n "no")
+                    (?! ,(format "Delete all remaining %s dirs" (length dirs)))
+                    (?q "quit"))))
+          (?y (delete-directory dir t))
+          (?! (delete-directory dir t)
+              (setq all t)))))
+    (when (and (derived-mode-p 'dired-revert)
+               (fboundp 'dired-revert))
+      (dired-revert nil nil))))
+
+(defun km-buffer-get-mirrored-files (file)
+  "Return backuped FILE versions."
+  (when (and file)
+    (let ((default-directory
+           (if (file-directory-p file)
+               file
+             (file-name-parent-directory file)))
+          (regex (regexp-quote
+                  (if (file-directory-p file)
+                      (file-name-nondirectory (directory-file-name
+                                               file))
+                    (file-name-nondirectory file)))))
+      (delete nil
+              (seq-uniq
+               (mapcan (lambda (it)
+                         (when (file-exists-p it)
+                           (if (file-directory-p it)
+                               (directory-files it t regex)
+                             (list it))))
+                       (when-let ((parent (km-buffer-get-parent-target-dir t)))
+                         (let ((top-parent (ignore-errors
+                                             (file-name-parent-directory
+                                              parent))))
+                           (delq nil
+                                 (seq-uniq
+                                  (append
+                                   (and parent
+                                        (file-exists-p parent)
+                                        (directory-files parent t
+                                                         (regexp-quote
+                                                          (file-name-nondirectory
+                                                           (directory-file-name
+                                                            parent)))))
+                                   (and top-parent
+                                        (file-exists-p top-parent)
+                                        (directory-files top-parent t
+                                                         (regexp-quote
+                                                          (file-name-nondirectory
+                                                           (directory-file-name
+                                                            parent))))))))))))))))
+;;;###autoload
 (defun km-buffer-find-backup-mirror ()
-  "Find a backup mirror of current file."
+  "Find backup file for current file."
   (interactive)
   (let* ((containing-dir default-directory)
          (backup-container
@@ -205,10 +308,11 @@ If DONT-CREATE is non nil, don't create it if it doesn't exists."
     (if (not (file-exists-p backup-container))
         (message "Directory %s doesn't exist"
                  km-buffer-backup-directory)
-      (read-file-name "File: " (and buffer-file-name
-                                    (file-name-nondirectory
-                                     buffer-file-name))
-                      backup-container))))
+      (find-file
+       (km-buffer-completing-read-with-keymap
+        "File: "
+        (km-buffer-get-mirrored-files (or buffer-file-name default-directory))
+        km-buffer-minibuffer-file-map)))))
 
 (defun km-buffer-file-name-split (filename)
   "Return a list of all the components of FILENAME.
@@ -269,7 +373,10 @@ See also `km-buffer-backup-time-format'."
                                    (format-time-string
                                     km-buffer-backup-time-format)))))
                            (cons x backup-name)))
-                       (dired-get-marked-files))))
+                       (seq-remove (lambda (it)
+                                     (or (string-suffix-p "./" it)
+                                         (string-suffix-p "../" it)))
+                                   (dired-get-marked-files)))))
     (dolist (cell alist)
       (message "Copying %s to %s" (car cell)
                (cdr cell))
@@ -500,36 +607,32 @@ Return the category metadatum as the type of the target."
 
 (defun km-buffer-minibuffer-web-restore-completions-wind ()
   "Restore *Completions* window height."
-  (when (eq this-command 'minibuffer-next-completion)
-    (remove-hook 'post-command-hook
-                 #'km-buffer-minibuffer-web-restore-completions-wind)
-    (when-let ((win (get-buffer-window "*Completions*" 0)))
-      (when (and (boundp 'completions-max-height)
-                 (numberp completions-max-height))
-        (fit-window-to-buffer win completions-max-height)))))
+  (when-let ((win (get-buffer-window "*Completions*" 0)))
+    (when (and (boundp 'completions-max-height)
+               (numberp completions-max-height))
+      (fit-window-to-buffer win completions-max-height))))
 
 (defun km-buffer-minibuffer-action-no-exit (action)
   "Call ACTION with minibuffer candidate in its original window."
+  (remove-hook 'pre-command-hook
+            #'km-buffer-minibuffer-web-restore-completions-wind)
   (pcase-let ((`(,_category . ,current)
                (km-buffer-minibuffer-get-current-candidate)))
-    (when-let ((win (get-buffer-window "*Completions*" 0)))
-      (minimize-window win)
-      (add-hook 'post-command-hook
-                #'km-buffer-minibuffer-web-restore-completions-wind))
     (with-minibuffer-selected-window
       (funcall action current))))
 
 ;;;###autoload
-(defun km-buffer-minibuffer-preview-file ()
-  "Call ACTION with minibuffer candidate in its original window."
+(defun km-buffer-minibuffer-find-file-other-window-and-exit ()
+  "Exit minibuffer and file selected candidate as file in other window."
   (interactive)
-  (km-buffer-minibuffer-action-no-exit 'find-file))
+  (km-buffer-minibuffer-exit-with-action #'find-file-other-window))
 
-(defvar km-buffer-minibuffer-file-map
-  (let ((map (make-sparse-keymap)))
-    (define-key map (kbd "C-j")
-                #'km-buffer-minibuffer-preview-file)
-    map))
+;;;###autoload
+(defun km-buffer-minibuffer-preview-file ()
+  "Preview current minibuffer file."
+  (interactive)
+  (km-buffer-minibuffer-action-no-exit #'find-file))
+
 
 (defun km-buffer-completing-read-with-keymap (prompt collection &optional keymap
                                                      predicate require-match
@@ -718,14 +821,15 @@ SOURCE-FILE can be also list of files to copy."
 
 (defun km-buffer-menu-make-file-action-description (label)
   "Return LABEL concatenated with fontified filename of the current buffer."
-  (concat label
-          " "
-          (or
-           (if buffer-file-name
-               (propertize (abbreviate-file-name
-                            buffer-file-name)
-                           'face 'transient-argument))
-           "")))
+  (if buffer-file-name
+      (concat label
+              " ("
+              (file-name-nondirectory
+               (directory-file-name
+                (abbreviate-file-name
+                 buffer-file-name)))
+              ")")
+    label))
 
 (defun km-buffer-transient-suffixes-watcher (_symbol newval _operation _buffer)
   "Variable watcher to update transient prefix `magit-tag' with NEWVAL."
@@ -754,55 +858,84 @@ SOURCE-FILE can be also list of files to copy."
               (list "Sisyphus")
               newval)))))
 
+
+
+
 ;;;###autoload (autoload 'km-buffer-actions-menu "km-buffer.el" nil t)
 (transient-define-prefix km-buffer-actions-menu ()
   "Command dispatcher with buffer commands."
-  ["Buffer actions"
-   ("G" "Revert buffer" revert-buffer :inapt-if-not
-    buffer-modified-p)
-   ("k" "Kill current buffer" kill-current-buffer)]
   [:description
-   "File actions\n"
-   ("r" km-buffer-reload-current-buffer
-    :description (lambda ()
-                   (km-buffer-menu-make-file-action-description "Reload"))
-    :inapt-if-not buffer-file-name)
-   ("D"
-    km-buffer-delete-current-buffer-file
-    :description (lambda ()
-                   (km-buffer-menu-make-file-action-description "Delete"))
-    :inapt-if-not buffer-file-name)
-   ("R" km-buffer-rename-current-buffer-file
-    :description (lambda ()
-                   (km-buffer-menu-make-file-action-description "Rename"))
-    :inapt-if-not buffer-file-name)
-   ("c" "Copy" km-buffer-copy-file)]
-  ["Backup"
-   ("b" km-buffer-make-backup
+   (lambda ()
+     (concat (propertize
+              (format
+               "%s"
+               (when default-directory
+                 (abbreviate-file-name default-directory)))
+              'face `(:inherit
+                      font-lock-constant-face)
+              'display '((height 1.1)))
+             (propertize "\n" 'face
+                         'font-lock-doc-face)))
+   [:description
+    (lambda ()
+      (km-buffer-menu-make-file-action-description "Act on file"))
+    ("r" "Reload"
+     km-buffer-reload-current-buffer
+     :inapt-if-not buffer-file-name)
+    ("D" "Delete" km-buffer-delete-current-buffer-file
+     :inapt-if-not buffer-file-name)
+    ("R" "Rename" km-buffer-rename-current-buffer-file
+     :inapt-if-not buffer-file-name)
+    ("c" "Copy" km-buffer-copy-file)
+    ("b" km-buffer-make-backup
+     :description
+     (lambda ()
+       (concat "Backup"
+               (if (derived-mode-p
+                    'dired-mode)
+                   (let* ((marked (dired-get-marked-files))
+                          (len (length marked))
+                          (desc (mapcar
+                                 (lambda (f)
+                                   (file-name-nondirectory
+                                    (directory-file-name f)))
+                                 marked)))
+                     (format " %d files %s" len
+                             (if desc
+                                 (format "(%s)"
+                                         (propertize
+                                          (truncate-string-to-width
+                                           (string-join desc
+                                                        ", ")
+                                           20 nil nil "...")
+                                          'face
+                                          'transient-argument))
+                               "")))
+                 ""))))]
+   ["Backup"
+    ("F" "Find in backups" km-buffer-find-backup-file
+     :inapt-if-not km-buffer-backup-directory-exists-p)
+    ("d" "Jump to backup directory" km-buffer-find-backup-dir
+     :inapt-if-not km-buffer-backup-directory-exists-p)
+    ("m" "Find backup mirror" km-buffer-find-backup-mirror
+     :inapt-if-not
+     (lambda ()
+       (km-buffer-get-mirrored-files buffer-file-name)))]]
+  [["Act on buffer"
     :description
     (lambda ()
-      (km-buffer-menu-make-file-action-description "Backup")))
-   ("F" "Find in backups" km-buffer-find-backup-file
-    :inapt-if-not km-buffer-backup-directory-exists-p)
-   ("d" "Jump to backup directory" km-buffer-find-backup-dir
-    :inapt-if-not km-buffer-backup-directory-exists-p)
-   ("m" "Find backup mirror" km-buffer-find-backup-mirror
-    :inapt-if-not
-    (lambda ()
-      (when buffer-file-name
-        (let ((dir (km-buffer-get-parent-target-dir)))
-          (and (file-exists-p dir)
-               (directory-files dir nil
-                                (regexp-quote (file-name-nondirectory
-                                               buffer-file-name))))))))]
-  ["Misc"
-   ("w" "Copy filename" km-buffer-kill-path-menu)
-   ("s" "Open sqlite file" km-buffer-sqlite-open-file
-    :if sqlite-available-p)
-   ("I" "Pandoc Import Menu" km-buffer-pandoc-import-transient
-    :if (lambda ()
-          (require 'org-pandoc-import nil t)
-          (featurep 'org-pandoc-import)))]
+      (km-buffer-menu-make-file-action-description "Act on buffer"))
+    ("G" "Revert" revert-buffer :inapt-if-not
+     buffer-modified-p)
+    ("k" "Kill" kill-current-buffer)]
+   ["Misc"
+    ("w" "Copy filepath" km-buffer-kill-path-menu)
+    ("s" "Open sqlite file" km-buffer-sqlite-open-file
+     :if sqlite-available-p)
+    ("I" "Pandoc Import Menu" km-buffer-pandoc-import-transient
+     :if (lambda ()
+           (require 'org-pandoc-import nil t)
+           (featurep 'org-pandoc-import)))]]
   [:setup-children
    (lambda (_args)
      (transient-parse-suffixes
