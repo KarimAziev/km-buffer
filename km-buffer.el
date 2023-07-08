@@ -70,12 +70,12 @@
                                                    (require 'chmod-menu
                                                             nil
                                                             t)))
-                                                ("i" "File Info" file-info-show
+                                                ("i" "Show File Info"
+                                                 file-info-show
+                                                 :inapt-if-nil buffer-file-name
                                                  :if
                                                  (lambda ()
-                                                   (require 'file-info
-                                                            nil
-                                                            t))))
+                                                   (require 'file-info nil t))))
   "Extra suffixes to add in `km-buffer-actions-menu'."
   :group 'km-buffer
   :type `(repeat
