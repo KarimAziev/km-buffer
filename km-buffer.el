@@ -370,13 +370,14 @@ If DONT-CREATE is non nil, don't create it if it doesn't exists."
   "Find a file in `km-buffer-backup-directory'."
   (interactive)
   (if (km-buffer-backup-directory-exists-p)
-      (km-buffer-completing-read-with-keymap
-       "File: "
-       (directory-files-recursively
-        km-buffer-backup-directory
-        directory-files-no-dot-files-regexp
-        nil)
-       km-buffer-minibuffer-file-map)
+      (find-file
+       (km-buffer-completing-read-with-keymap
+        "File: "
+        (directory-files-recursively
+         km-buffer-backup-directory
+         directory-files-no-dot-files-regexp
+         nil)
+        km-buffer-minibuffer-file-map))
     (message "Directory %s doesn't exist"
              km-buffer-backup-directory)))
 
