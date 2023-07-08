@@ -45,22 +45,209 @@
   :type 'directory
   :group 'km)
 
+
 (defcustom km-buffer-extra-transient-suffixes '(("p" "Pandoc Menu"
-                                                 pandoc-mini-menu)
+                                                 pandoc-mini-menu :if (lambda ()
+                                                                        (require
+                                                                         'pandoc-mini
+                                                                         nil t)))
                                                 ("o" "Pandoc Import to org"
-                                                 org-pandoc-import-to-org)
+                                                 org-pandoc-import-to-org
+                                                 :if
+                                                 (lambda ()
+                                                   (require 'org-pandoc-import
+                                                            nil t)))
                                                 ("t" "Sudo Edit File"
-                                                 sudo-edit-find-file)
+                                                 sudo-edit-find-file
+                                                 :if
+                                                 (lambda ()
+                                                   (require 'sudo-edit nil t)))
                                                 ("S" "Sudo Edit This File"
                                                  sudo-edit)
-                                                ("C" "Chmod" chmod-menu)
-                                                ("i" "File Info" file-info-show))
+                                                ("C" "Chmod" chmod-menu :if
+                                                 (lambda
+                                                   ()
+                                                   (require 'chmod-menu
+                                                            nil
+                                                            t)))
+                                                ("i" "File Info" file-info-show
+                                                 :if
+                                                 (lambda ()
+                                                   (require 'file-info
+                                                            nil
+                                                            t))))
   "Extra suffixes to add in `km-buffer-actions-menu'."
-  :group 'sisyphus
-  :type '(repeat (list :tag "Suffix"
-                       (string :tag "Key")
-                       (string :tag "Description")
-                       (function :tag "Command"))))
+  :group 'km-buffer
+  :type `(repeat
+          (list
+           :tag "Suffix"
+           (string :tag "Key")
+           (choice
+            (string :tag "Description")
+            (function :tag "Description Function")
+            (sexp :tag "Description sexp"))
+           (function :tag "Command")
+           (repeat
+            :tag "Inapt by modes"
+            :inline t
+            (list
+             :tag "Inapt by modes"
+             :inline t
+             (radio
+              (const
+               :format "%v %d"
+               :tag ":inapt-if-mode"
+               :doc
+               "Inapt if major-mode matches value."
+               :inapt-if-mode)
+              (const
+               :format "%v %d"
+               :tag ":inapt-if-not-mode"
+               :doc
+               "Inapt if major-mode does not match value."
+               :inapt-if-not-mode)
+              (const
+               :format "%v %d"
+               :tag ":inapt-if-derived"
+               :doc
+               "Inapt if major-mode derives from value."
+               :inapt-if-derived)
+              (const
+               :format "%v %d"
+               :tag ":inapt-if-not-derived"
+               :doc
+               "Inapt if major-mode does not derive from value."
+               :inapt-if-not-derived))
+             (symbol
+              :completions
+              (lambda (string pred action)
+                (let ((completion-ignore-case t))
+                  (complete-with-action action
+                                        (remove 't
+                                                (seq-uniq
+                                                 (seq-filter
+                                                  'symbolp
+                                                  (flatten-list
+                                                   auto-mode-alist))))
+                                        string pred))))))
+           (repeat
+            :tag "If mode"
+            :inline t
+            (list
+             :inline t
+             (radio
+              (const
+               :format "%v %d"
+               :tag ":if-mode"
+               :doc
+               "Enable if major-mode matches value."
+               :if-mode)
+              (const
+               :format "%v %d"
+               :tag ":if-not-mode"
+               :doc
+               "Enable if major-mode does not match value."
+               :if-not-mode)
+              (const
+               :format "%v %d"
+               :tag ":if-derived"
+               :doc
+               "Enable if major-mode derives from value."
+               :if-derived)
+              (const
+               :format "%v %d"
+               :tag ":if-not-derived"
+               :doc
+               "Enable if major-mode does not derive from value."
+               :if-not-derived))
+             (symbol :completions
+                     (lambda (string pred action)
+                       (let ((completion-ignore-case t))
+                         (complete-with-action action
+                                               (remove 't
+                                                       (seq-uniq
+                                                        (seq-filter
+                                                         'symbolp
+                                                         (flatten-list
+                                                          auto-mode-alist))))
+                                               string pred))))))
+           (repeat
+            :inline t
+            :tag "If variable"
+            (list
+             :inline t
+             (radio
+              (const
+               :format "%v %d"
+               :tag ":if-non-nil"
+               :doc
+               "Enable if variable's value is non-nil."
+               :if-non-nil)
+              (const
+               :format "%v %d"
+               :tag ":if-nil"
+               :doc "Enable if variable's value is nil."
+               :if-nil))
+             variable))
+           (repeat
+            :inline t
+            :tag "Inapt if variable"
+            (list
+             :inline t
+             (radio (const
+                     :format "%v %d"
+                     :tag ":inapt-if-non-nil"
+                     :doc
+                     "Inapt if variable's value is non-nil."
+                     :inapt-if-non-nil)
+                    (const
+                     :format "%v %d"
+                     :tag ":inapt-if-nil"
+                     :doc
+                     "Inapt if variable's value is nil."
+                     :inapt-if-nil))
+             variable))
+           (repeat
+            :tag "If"
+            :inline t
+            (list
+             :inline t
+             (radio
+              (const
+               :format "%v %d"
+               :tag ":if"
+               :doc "Enable if predicate returns non-nil."
+               :if)
+              (const
+               :format "%v %d"
+               :tag ":if-not"
+               :doc "Enable if predicate returns nil."
+               :if-not)
+              (symbol :tag "other"))
+             (choice (function :tag "Function")
+                     (symbol :tag "Symbol")
+                     (sexp :tag "Sexp"))))
+           (repeat
+            :tag "Inapt if "
+            :inline t
+            (list
+             :inline t
+             (radio (const
+                     :format "%v %d"
+                     :tag ":inapt-if"
+                     :doc
+                     "Inapt if predicate returns non-nil."
+                     :inapt-if)
+                    (const
+                     :format "%v %d"
+                     :tag ":inapt-if-not"
+                     :doc
+                     "Inapt if predicate returns nil."
+                     :inapt-if-not)
+                    (symbol :tag "other"))
+             (choice (function :tag "Function")
+                     (symbol :tag "Symbol")
+                     (sexp :tag "Sexp")))))))
 
 ;;;###autoload (autoload 'km-buffer-pandoc-import-transient "km-buffer.el" nil t)
 (transient-define-prefix km-buffer-pandoc-import-transient ()
@@ -941,9 +1128,18 @@ SOURCE-FILE can be also list of files to copy."
      (transient-parse-suffixes
       transient--prefix
       (apply #'vector
-             (seq-filter (lambda (l)
-                           (fboundp (car (last l))))
-                         km-buffer-extra-transient-suffixes))))])
+             (mapcar (lambda (it)
+                       (let ((description (nth 1 it)))
+                         (if (stringp description)
+                             it
+                           (append (list (car it)
+                                         (nth 2 it)
+                                         :description
+                                         description)
+                                   (seq-drop it 3)))))
+                     (seq-filter (lambda (l)
+                                   (fboundp (nth 2 l)))
+                                 km-buffer-extra-transient-suffixes)))))])
 
 (provide 'km-buffer)
 ;;; km-buffer.el ends here
