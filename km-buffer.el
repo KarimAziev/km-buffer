@@ -6,7 +6,7 @@
 ;; URL: https://github.com/KarimAziev/km-buffer
 ;; Version: 0.1.0
 ;; Keywords: tools
-;; Package-Requires: ((emacs "28.1") (project "0.9.4"))
+;; Package-Requires: ((emacs "29.1") (project "0.9.4") (transient "0.4.1"))
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 
 ;; This file is NOT part of GNU Emacs.
@@ -126,7 +126,7 @@
                                         (remove 't
                                                 (seq-uniq
                                                  (seq-filter
-                                                  'symbolp
+                                                  #'symbolp
                                                   (flatten-list
                                                    auto-mode-alist))))
                                         string pred))))))
@@ -167,7 +167,7 @@
                                                (remove 't
                                                        (seq-uniq
                                                         (seq-filter
-                                                         'symbolp
+                                                         #'symbolp
                                                          (flatten-list
                                                           auto-mode-alist))))
                                                string pred))))))
@@ -249,7 +249,7 @@
                      (symbol :tag "Symbol")
                      (sexp :tag "Sexp")))))))
 
-;;;###autoload (autoload 'km-buffer-pandoc-import-transient "km-buffer.el" nil t)
+;;;###autoload (autoload 'km-buffer-pandoc-import-transient "km-buffer" nil t)
 (transient-define-prefix km-buffer-pandoc-import-transient ()
   "Command dispatcher for `org-pandoc-import'."
   [:if (lambda ()
@@ -947,7 +947,7 @@ SOURCE-FILE can be also list of files to copy."
         (km-buffer-view-echo-messages-0))
     (km-buffer-view-echo-messages-0)))
 
-;;;###autoload (autoload 'km-buffer-kill-path-menu "km-buffer.el" nil t)
+;;;###autoload (autoload 'km-buffer-kill-path-menu "km-buffer" nil t)
 (transient-define-prefix km-buffer-kill-path-menu ()
   "Command dispatcher for copying current buffer file name in misc formats."
   ["Copy filename"
@@ -1049,7 +1049,7 @@ SOURCE-FILE can be also list of files to copy."
 
 
 
-;;;###autoload (autoload 'km-buffer-actions-menu "km-buffer.el" nil t)
+;;;###autoload (autoload 'km-buffer-actions-menu "km-buffer" nil t)
 (transient-define-prefix km-buffer-actions-menu ()
   "Command dispatcher with buffer commands."
   [:description
