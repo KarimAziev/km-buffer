@@ -1046,7 +1046,31 @@ SOURCE-FILE can be also list of files to copy."
               (list "Sisyphus")
               newval)))))
 
-
+(defun km-buffer-find-emacs-related-source-file ()
+  "Locate and open the source file associated with the current buffer."
+  (interactive)
+  (when (and
+         buffer-file-name
+         (bound-and-true-p source-directory)
+         (bound-and-true-p data-directory)
+         (file-accessible-directory-p source-directory)
+         (file-accessible-directory-p data-directory))
+    (let* ((data-parent-dir (file-name-parent-directory data-directory))
+           (source-file
+            (when (file-in-directory-p
+                   buffer-file-name
+                   data-parent-dir)
+              (expand-file-name
+               (substring-no-properties
+                buffer-file-name
+                (length
+                 data-parent-dir))
+               source-directory))))
+      (when (and source-file
+                 (file-exists-p source-file))
+        (let ((pos (point)))
+          (find-file source-file)
+          (goto-char pos))))))
 
 
 ;;;###autoload (autoload 'km-buffer-actions-menu "km-buffer" nil t)
