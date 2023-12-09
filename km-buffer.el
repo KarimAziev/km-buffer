@@ -6,7 +6,7 @@
 ;; URL: https://github.com/KarimAziev/km-buffer
 ;; Version: 0.1.0
 ;; Keywords: tools
-;; Package-Requires: ((emacs "29.1") (project "0.9.4") (transient "0.4.1"))
+;; Package-Requires: ((emacs "29.1") (project "0.9.4") (transient "0.4.3"))
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 
 ;; This file is NOT part of GNU Emacs.
@@ -700,11 +700,13 @@ See also `km-buffer-backup-time-format'."
   "Open current file with `sqlite-mode-open-file'."
   (interactive)
   (when (fboundp 'sqlite-mode-open-file)
-    (sqlite-mode-open-file
-     (read-file-name "SQLite file name: "
-                     (when buffer-file-name
-                       (file-name-nondirectory
-                        buffer-file-name))))))
+    (if (and buffer-file-name
+             (member (file-name-extension buffer-file-name) '("sqlite")))
+        (sqlite-mode-open-file buffer-file-name)
+      (read-file-name "SQLite file name: "
+                      (when buffer-file-name
+                        (file-name-nondirectory
+                         buffer-file-name))))))
 
 (defun km-buffer-minibuffer-get-metadata ()
   "Return current minibuffer completion metadata."
@@ -1046,11 +1048,14 @@ SOURCE-FILE can be also list of files to copy."
               (list "Sisyphus")
               newval)))))
 
-(defun km-buffer-find-emacs-related-source-file ()
-  "Locate and open the source file associated with the current buffer."
-  (interactive)
+
+(defun km-buffer-get-emacs-source-mirror-file (file)
+  "Retrieve corresponding source file for FILE from Emacs `data-directory'.
+
+Argument FILE is the name of the file for which to find the Emacs source mirror
+file."
   (when (and
-         buffer-file-name
+         file
          (bound-and-true-p source-directory)
          (bound-and-true-p data-directory)
          (file-accessible-directory-p source-directory)
@@ -1058,19 +1063,27 @@ SOURCE-FILE can be also list of files to copy."
     (let* ((data-parent-dir (file-name-parent-directory data-directory))
            (source-file
             (when (file-in-directory-p
-                   buffer-file-name
+                   file
                    data-parent-dir)
               (expand-file-name
                (substring-no-properties
-                buffer-file-name
+                (expand-file-name file)
                 (length
                  data-parent-dir))
                source-directory))))
       (when (and source-file
                  (file-exists-p source-file))
-        (let ((pos (point)))
-          (find-file source-file)
-          (goto-char pos))))))
+        source-file))))
+
+;;;###autoload
+(defun km-buffer-find-emacs-related-source-file ()
+  "Locate and open the source file associated with the current buffer."
+  (interactive)
+  (when-let ((source-file (km-buffer-get-emacs-source-mirror-file
+                           buffer-file-name))
+             (pos (point)))
+    (find-file source-file)
+    (goto-char pos)))
 
 
 ;;;###autoload (autoload 'km-buffer-actions-menu "km-buffer" nil t)
@@ -1132,7 +1145,12 @@ SOURCE-FILE can be also list of files to copy."
     ("m" "Find backup mirror" km-buffer-find-backup-mirror
      :inapt-if-not
      (lambda ()
-       (km-buffer-get-mirrored-files buffer-file-name)))]]
+       (km-buffer-get-mirrored-files buffer-file-name)))
+    ("j" "Find emacs file source mirror"
+     km-buffer-find-emacs-related-source-file
+     :if
+     (lambda ()
+       (km-buffer-get-emacs-source-mirror-file buffer-file-name)))]]
   [["Act on buffer"
     :description
     (lambda ()
