@@ -701,7 +701,7 @@ See also `km-buffer-backup-time-format'."
   (interactive)
   (when (fboundp 'sqlite-mode-open-file)
     (if (and buffer-file-name
-             (member (file-name-extension buffer-file-name) '("sqlite")))
+             (member (file-name-extension buffer-file-name) '("sqlite" "db")))
         (sqlite-mode-open-file buffer-file-name)
       (read-file-name "SQLite file name: "
                       (when buffer-file-name
