@@ -916,7 +916,7 @@ SOURCE-FILE can be also list of files to copy."
   (dired-copy-file source-file target-directory 1))
 
 (defun km-buffer-view-echo-messages-0 ()
-  "Switch to the *Messages* buffer with recent echo-area messages."
+  "Display the *Messages* buffer, scrolling to the latest message."
   (let ((curr (current-buffer))
         (msg-buff (messages-buffer))
         (msg-window))
