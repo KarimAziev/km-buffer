@@ -1169,7 +1169,7 @@ file."
   [:setup-children
    (lambda (_args)
      (transient-parse-suffixes
-      transient--prefix
+      (oref transient--prefix command)
       (apply #'vector
              (mapcar (lambda (it)
                        (let ((description (nth 1 it)))
