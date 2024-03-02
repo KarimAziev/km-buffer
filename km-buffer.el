@@ -1182,7 +1182,8 @@ file."
                                    (seq-drop it 3)))))
                      (seq-filter (lambda (l)
                                    (fboundp (nth 2 l)))
-                                 km-buffer-extra-transient-suffixes)))))])
+                                 km-buffer-extra-transient-suffixes)))))
+   :class transient-column])
 
 (provide 'km-buffer)
 ;;; km-buffer.el ends here
