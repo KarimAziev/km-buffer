@@ -46,208 +46,214 @@
   :group 'km-buffer)
 
 
-(defcustom km-buffer-extra-transient-suffixes '(("p" "Pandoc Menu"
-                                                 pandoc-mini-menu :if (lambda ()
-                                                                        (require
-                                                                         'pandoc-mini
-                                                                         nil t)))
+(defcustom km-buffer-extra-transient-suffixes '("Pandoc"
+                                                ("p" "Pandoc Menu"
+                                                 pandoc-mini-menu :if-require
+                                                 (pandoc-mini))
                                                 ("o" "Pandoc Import to org"
                                                  org-pandoc-import-to-org
-                                                 :if
-                                                 (lambda ()
-                                                   (require 'org-pandoc-import
-                                                            nil t)))
-                                                ("t" "Sudo Edit File"
-                                                 sudo-edit-find-file
-                                                 :if
-                                                 (lambda ()
-                                                   (require 'sudo-edit nil t)))
-                                                ("S" "Sudo Edit This File"
-                                                 sudo-edit)
-                                                ("C" "Chmod" chmod-menu :if
-                                                 (lambda
-                                                   ()
-                                                   (require 'chmod-menu
-                                                            nil
-                                                            t)))
+                                                 :if-require (org-pandoc-import))
+                                                "Other"
+                                                ("C" "Chmod" chmod-menu
+                                                 :if-require (chmod-menu))
                                                 ("i" "Show File Info"
                                                  file-info-show
-                                                 :inapt-if-nil buffer-file-name
-                                                 :if
-                                                 (lambda ()
-                                                   (require 'file-info nil t))))
+                                                 :if-require (file-info)
+                                                 :inapt-if-nil buffer-file-name)
+                                                ("i" "Show File Info"
+                                                 blamer
+                                                 :if-require (file-info)
+                                                 :inapt-if-nil buffer-file-name))
   "Extra suffixes to add in `km-buffer-actions-menu'."
   :group 'km-buffer
   :type `(repeat
-          (list
-           :tag "Suffix"
-           (string :tag "Key")
-           (choice
-            (string :tag "Description")
-            (function :tag "Description Function")
-            (sexp :tag "Description sexp"))
-           (function :tag "Command")
-           (repeat
-            :tag "Inapt by modes"
-            :inline t
-            (list
+          (choice
+           (list
+            :tag "Suffix"
+            (string :tag "Key")
+            (choice
+             (string :tag "Description")
+             (function :tag "Description Function")
+             (sexp :tag "Description sexp"))
+            (function :tag "Command")
+            (set
+             :tag "If require"
+             :inline t
+             (group
+              :format "%v"
+              :inline t
+              (const
+               :format ""
+               :if-require)
+              (repeat
+               (symbol
+                :tag "Library"
+                :completions
+                (lambda (string pred action)
+                  (let ((completion-ignore-case t))
+                   (complete-with-action action features string pred)))))))
+            (repeat
              :tag "Inapt by modes"
              :inline t
-             (radio
-              (const
-               :format "%v %d"
-               :tag ":inapt-if-mode"
-               :doc
-               "Inapt if major-mode matches value."
-               :inapt-if-mode)
-              (const
-               :format "%v %d"
-               :tag ":inapt-if-not-mode"
-               :doc
-               "Inapt if major-mode does not match value."
-               :inapt-if-not-mode)
-              (const
-               :format "%v %d"
-               :tag ":inapt-if-derived"
-               :doc
-               "Inapt if major-mode derives from value."
-               :inapt-if-derived)
-              (const
-               :format "%v %d"
-               :tag ":inapt-if-not-derived"
-               :doc
-               "Inapt if major-mode does not derive from value."
-               :inapt-if-not-derived))
-             (symbol
-              :completions
-              (lambda (string pred action)
-                (let ((completion-ignore-case t))
+             (list
+              :tag "Inapt by modes"
+              :inline t
+              (radio
+               (const
+                :format "%v %d"
+                :tag ":inapt-if-mode"
+                :doc
+                "Inapt if major-mode matches value."
+                :inapt-if-mode)
+               (const
+                :format "%v %d"
+                :tag ":inapt-if-not-mode"
+                :doc
+                "Inapt if major-mode does not match value."
+                :inapt-if-not-mode)
+               (const
+                :format "%v %d"
+                :tag ":inapt-if-derived"
+                :doc
+                "Inapt if major-mode derives from value."
+                :inapt-if-derived)
+               (const
+                :format "%v %d"
+                :tag ":inapt-if-not-derived"
+                :doc
+                "Inapt if major-mode does not derive from value."
+                :inapt-if-not-derived))
+              (symbol
+               :completions
+               (lambda (string pred action)
+                 (let ((completion-ignore-case t))
                   (complete-with-action action
-                                        (remove 't
-                                                (seq-uniq
-                                                 (seq-filter
-                                                  #'symbolp
-                                                  (flatten-list
-                                                   auto-mode-alist))))
-                                        string pred))))))
-           (repeat
-            :tag "If mode"
-            :inline t
-            (list
+                   (remove 't
+                    (seq-uniq
+                     (seq-filter
+                      #'symbolp
+                      (flatten-list
+                       auto-mode-alist))))
+                   string pred))))))
+            (repeat
+             :tag "If mode"
              :inline t
-             (radio
-              (const
-               :format "%v %d"
-               :tag ":if-mode"
-               :doc
-               "Enable if major-mode matches value."
-               :if-mode)
-              (const
-               :format "%v %d"
-               :tag ":if-not-mode"
-               :doc
-               "Enable if major-mode does not match value."
-               :if-not-mode)
-              (const
-               :format "%v %d"
-               :tag ":if-derived"
-               :doc
-               "Enable if major-mode derives from value."
-               :if-derived)
-              (const
-               :format "%v %d"
-               :tag ":if-not-derived"
-               :doc
-               "Enable if major-mode does not derive from value."
-               :if-not-derived))
-             (symbol :completions
-                     (lambda (string pred action)
-                       (let ((completion-ignore-case t))
-                         (complete-with-action action
-                                               (remove 't
-                                                       (seq-uniq
-                                                        (seq-filter
-                                                         #'symbolp
-                                                         (flatten-list
-                                                          auto-mode-alist))))
-                                               string pred))))))
-           (repeat
-            :inline t
-            :tag "If variable"
-            (list
+             (list
+              :inline t
+              (radio
+               (const
+                :format "%v %d"
+                :tag ":if-mode"
+                :doc
+                "Enable if major-mode matches value."
+                :if-mode)
+               (const
+                :format "%v %d"
+                :tag ":if-not-mode"
+                :doc
+                "Enable if major-mode does not match value."
+                :if-not-mode)
+               (const
+                :format "%v %d"
+                :tag ":if-derived"
+                :doc
+                "Enable if major-mode derives from value."
+                :if-derived)
+               (const
+                :format "%v %d"
+                :tag ":if-not-derived"
+                :doc
+                "Enable if major-mode does not derive from value."
+                :if-not-derived))
+              (symbol :completions
+               (lambda (string pred action)
+                 (let ((completion-ignore-case t))
+                  (complete-with-action action
+                   (remove 't
+                    (seq-uniq
+                     (seq-filter
+                      #'symbolp
+                      (flatten-list
+                       auto-mode-alist))))
+                   string pred))))))
+            (repeat
              :inline t
-             (radio
-              (const
-               :format "%v %d"
-               :tag ":if-non-nil"
-               :doc
-               "Enable if variable's value is non-nil."
-               :if-non-nil)
-              (const
-               :format "%v %d"
-               :tag ":if-nil"
-               :doc "Enable if variable's value is nil."
-               :if-nil))
-             variable))
-           (repeat
-            :inline t
-            :tag "Inapt if variable"
-            (list
+             :tag "If variable"
+             (list
+              :inline t
+              (radio
+               (const
+                :format "%v %d"
+                :tag ":if-non-nil"
+                :doc
+                "Enable if variable's value is non-nil."
+                :if-non-nil)
+               (const
+                :format "%v %d"
+                :tag ":if-nil"
+                :doc "Enable if variable's value is nil."
+                :if-nil))
+              variable))
+            (repeat
              :inline t
-             (radio (const
-                     :format "%v %d"
-                     :tag ":inapt-if-non-nil"
-                     :doc
-                     "Inapt if variable's value is non-nil."
-                     :inapt-if-non-nil)
-                    (const
-                     :format "%v %d"
-                     :tag ":inapt-if-nil"
-                     :doc
-                     "Inapt if variable's value is nil."
-                     :inapt-if-nil))
-             variable))
-           (repeat
-            :tag "If"
-            :inline t
-            (list
+             :tag "Inapt if variable"
+             (list
+              :inline t
+              (radio (const
+                      :format "%v: %d"
+                      :tag ":inapt-if-non-nil"
+                      :doc
+                      "Inapt if variable's value is non-nil."
+                      :inapt-if-non-nil)
+               (const
+                :format "%v: %d"
+                :tag ":inapt-if-nil"
+                :doc
+                "Inapt if variable's value is nil."
+                :inapt-if-nil))
+              variable))
+            (repeat
+             :tag "If"
              :inline t
-             (radio
-              (const
-               :format "%v %d"
-               :tag ":if"
-               :doc "Enable if predicate returns non-nil."
-               :if)
-              (const
-               :format "%v %d"
-               :tag ":if-not"
-               :doc "Enable if predicate returns nil."
-               :if-not)
-              (symbol :tag "other"))
-             (choice (function :tag "Function")
-                     (symbol :tag "Symbol")
-                     (sexp :tag "Sexp"))))
-           (repeat
-            :tag "Inapt if "
-            :inline t
-            (list
+             (list
+              :inline t
+              (radio
+               (const
+                :format "%v %d"
+                :tag ":if"
+                :doc "Enable if predicate returns non-nil."
+                :if)
+               (const
+                :format "%v %d"
+                :tag ":if-not"
+                :doc "Enable if predicate returns nil."
+                :if-not)
+               (symbol :tag "other"))
+              (choice (function :tag "Function")
+               (symbol :tag "Symbol")
+               (sexp :tag "Sexp"))))
+            (repeat
+             :tag "Inapt if"
              :inline t
-             (radio (const
-                     :format "%v %d"
-                     :tag ":inapt-if"
-                     :doc
-                     "Inapt if predicate returns non-nil."
-                     :inapt-if)
-                    (const
-                     :format "%v %d"
-                     :tag ":inapt-if-not"
-                     :doc
-                     "Inapt if predicate returns nil."
-                     :inapt-if-not)
-                    (symbol :tag "other"))
-             (choice (function :tag "Function")
-                     (symbol :tag "Symbol")
-                     (sexp :tag "Sexp")))))))
+             (list
+              :inline t
+              (radio (const
+                      :format "%v %d"
+                      :tag ":inapt-if"
+                      :doc
+                      "Inapt if predicate returns non-nil."
+                      :inapt-if)
+               (const
+                :format "%v %d"
+                :tag ":inapt-if-not"
+                :doc
+                "Inapt if predicate returns nil."
+                :inapt-if-not)
+               (symbol :tag "other"))
+              (choice (function :tag "Function")
+               (symbol :tag "Symbol")
+               (sexp :tag "Sexp")))))
+           (string :tag "Title"))))
 
 ;;;###autoload (autoload 'km-buffer-pandoc-import-transient "km-buffer" nil t)
 (transient-define-prefix km-buffer-pandoc-import-transient ()
@@ -1021,33 +1027,6 @@ SOURCE-FILE can be also list of files to copy."
               ")")
     label))
 
-(defun km-buffer-transient-suffixes-watcher (_symbol newval _operation _buffer)
-  "Variable watcher to update transient prefix `magit-tag' with NEWVAL."
-  (let* ((layout (get 'km-buffer-actions-menu 'transient--layout))
-         (len (length layout)))
-    (when-let ((suffix-idx (catch 'found
-                             (dotimes (idx len)
-                               (let ((group (nth idx layout)))
-                                 (when (and (vectorp group)
-                                            (eq :description
-                                                (car-safe (aref group 2)))
-                                            (equal
-                                             (cadr (aref group 2))
-                                             "Sisyphus"))
-                                   (throw 'found idx)))))))
-      (transient-remove-suffix 'magit-tag (list suffix-idx))))
-  (when newval
-    (transient-append-suffix 'magit-tag
-      (list
-       (let ((i (1- (length (get 'magit-tag 'transient--layout)))))
-         (if (>= i 0)
-             i
-           0)))
-      (apply #'vector
-             (append
-              (list "Sisyphus")
-              newval)))))
-
 
 (defun km-buffer-get-emacs-source-mirror-file (file)
   "Retrieve corresponding source file for FILE from Emacs `data-directory'.
@@ -1084,6 +1063,94 @@ file."
              (pos (point)))
     (find-file source-file)
     (goto-char pos)))
+
+(defun km-buffer--is-all-libs-loadable (libs)
+  "Check if all libraries in LIBS are loadable without errors.
+
+Argument LIBS is a list of symbols representing libraries to check for
+loadability."
+  (not (catch 'found
+         (dolist (sym libs)
+           (unless
+               (require sym nil t)
+             (throw 'found t))))))
+
+(defun km-buffer--plist-remove (keys plist)
+  "Remove KEYS and values from PLIST."
+  (let* ((result (list 'head))
+         (last result))
+    (while plist
+      (let* ((key (pop plist))
+             (val (pop plist))
+             (new (and (not (memq key keys))
+                       (list key val))))
+        (when new
+          (setcdr last new)
+          (setq last (cdr new)))))
+    (cdr result)))
+
+(defun km-buffer--check-extra-suffix (spec)
+  "Check if SPEC is a string or meets certain conditions for loading.
+
+Argument SPEC is a string or a list where the third element is a function to
+check for loadability and the remaining elements specify libraries to load."
+  (or (stringp spec)
+      (let ((props (seq-drop spec 3)))
+        (and
+         (km-buffer--is-all-libs-loadable
+          (plist-get props :if-require))
+         (fboundp (caddr spec))))))
+
+(defun km-buffer--normalize-suffix-spec (spec)
+  "Normalize suffix specification SPEC into a consistent format.
+
+Argument SPEC is a string or a list containing a key, a description, a command,
+and a property list."
+  (if (stringp spec)
+      spec
+    (pcase-let* ((`(,key ,description ,cmd . ,plist)
+                  spec)
+                 (suff (if (stringp description)
+                           (list key description cmd)
+                         (list key
+                               cmd
+                               :description
+                               description)))
+                 (props (km-buffer--plist-remove
+                         '(:if-require)
+                         plist)))
+      (append suff props))))
+
+(defvar km-buffer--extra-commands nil)
+
+(defun km-buffer--group-list-by-headers (input-list)
+  "Groups elements in INPUT-LIST by headers (strings) into sublists."
+  (let ((result '())
+        (current-group '()))
+    (dolist (elem input-list)
+      (if (stringp elem)
+          (progn
+            ;; When encountering a header, first check if the current-group
+            ;; has items. If it does, add it to the result and start a new group.
+            (when current-group
+              (push (nreverse current-group) result)
+              (setq current-group '())) ;; Reset current group.
+            ;; Start a new group with the header as the first element.
+            (push elem current-group))
+        ;; If the element is not a header, add it to the current group.
+        (push elem current-group)))
+    ;; After looping, add the last group to the result if it's not empty.
+    (when current-group
+      (push (nreverse current-group) result))
+    (nreverse result)))
+
+
+(defun km-buffer--get-extra-suffixes ()
+  "Filter and group extra suffixes based on specific conditions."
+  (let ((all-items (mapcar #'km-buffer--normalize-suffix-spec
+                           (seq-filter #'km-buffer--check-extra-suffix
+                                       km-buffer-extra-transient-suffixes))))
+    (km-buffer--group-list-by-headers all-items)))
 
 
 ;;;###autoload (autoload 'km-buffer-actions-menu "km-buffer" nil t)
@@ -1136,7 +1203,14 @@ file."
                                           'face
                                           'transient-argument))
                                "")))
-                 ""))))]
+                 ""))))
+    ("S" "Sudo edit" sudo-edit
+     :if (lambda ()
+           (require 'sudo-edit nil t)))
+    ("t" "Sudo other file"
+     sudo-edit-find-file
+     :if (lambda ()
+           (require 'sudo-edit nil t)))]
    ["Backup"
     ("F" "Find in backups" km-buffer-find-backup-file
      :inapt-if-not km-buffer-backup-directory-exists-p)
@@ -1166,24 +1240,45 @@ file."
      :if (lambda ()
            (require 'org-pandoc-import nil t)
            (featurep 'org-pandoc-import)))]]
-  [:setup-children
-   (lambda (_args)
-     (transient-parse-suffixes
-      (oref transient--prefix command)
-      (apply #'vector
-             (mapcar (lambda (it)
-                       (let ((description (nth 1 it)))
-                         (if (stringp description)
-                             it
-                           (append (list (car it)
-                                         (nth 2 it)
-                                         :description
-                                         description)
-                                   (seq-drop it 3)))))
-                     (seq-filter (lambda (l)
-                                   (fboundp (nth 2 l)))
-                                 km-buffer-extra-transient-suffixes)))))
-   :class transient-column])
+  [[:setup-children
+    (lambda (_args)
+      (transient-parse-suffixes
+       (oref transient--prefix command)
+       (nth 0 km-buffer--extra-commands)))
+    :class transient-column]
+   [:setup-children
+    (lambda (_args)
+      (transient-parse-suffixes
+       (oref transient--prefix command)
+       (nth 1 km-buffer--extra-commands)))
+    :class transient-column]]
+  [[:setup-children
+    (lambda (_args)
+      (transient-parse-suffixes
+       (oref transient--prefix command)
+       (nth 2 km-buffer--extra-commands)))
+    :class transient-column]
+   [:setup-children
+    (lambda (_args)
+      (transient-parse-suffixes
+       (oref transient--prefix command)
+       (nth 3 km-buffer--extra-commands)))
+    :class transient-column]]
+  [[:setup-children
+    (lambda (_args)
+      (transient-parse-suffixes
+       (oref transient--prefix command)
+       (nth 4 km-buffer--extra-commands)))
+    :class transient-column]
+   [:setup-children
+    (lambda (_args)
+      (transient-parse-suffixes
+       (oref transient--prefix command)
+       (nth 5 km-buffer--extra-commands)))
+    :class transient-column]]
+  (interactive)
+  (setq km-buffer--extra-commands (km-buffer--get-extra-suffixes))
+  (transient-setup #'km-buffer-actions-menu))
 
 (provide 'km-buffer)
 ;;; km-buffer.el ends here
