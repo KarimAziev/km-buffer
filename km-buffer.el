@@ -1,4 +1,4 @@
-;;; km-buffer.el --- Configure buffer -*- lexical-binding: t -*-
+;;; km-buffer.el --- Additional buffer commands -*- lexical-binding: t -*-
 
 ;; Copyright © 2020-2022 Karim Aziiev <karim.aziiev@gmail.com>
 
@@ -26,8 +26,7 @@
 
 ;;; Commentary:
 
-;; This file configures operations with buffer
-
+;; This package provides additional buffer commands for Emacs.
 ;;; Code:
 
 (require 'transient)
