@@ -1151,6 +1151,13 @@ and a property list."
                                        km-buffer-extra-transient-suffixes))))
     (km-buffer--group-list-by-headers all-items)))
 
+(defun km-buffer-make-file-executable-if-script-p-after-save ()
+  "Enable make file executable according to umask if not already executable."
+  (require 'executable)
+  (add-hook 'after-save-hook
+            #'executable-make-buffer-file-executable-if-script-p
+            nil t))
+
 
 ;;;###autoload (autoload 'km-buffer-actions-menu "km-buffer" nil t)
 (transient-define-prefix km-buffer-actions-menu ()
