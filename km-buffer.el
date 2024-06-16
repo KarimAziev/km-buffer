@@ -59,9 +59,9 @@
                                                  file-info-show
                                                  :if-require (file-info)
                                                  :inapt-if-nil buffer-file-name)
-                                                ("i" "Show File Info"
-                                                 blamer
-                                                 :if-require (file-info)
+                                                ("B" "Blamer Mode"
+                                                 blamer-mode
+                                                 :if-require (blamer)
                                                  :inapt-if-nil buffer-file-name))
   "Extra suffixes to add in `km-buffer-actions-menu'."
   :group 'km-buffer
