@@ -47,41 +47,13 @@
 
 (defcustom km-buffer-extra-transient-suffixes '("Atomic chrome"
                                                 ("A"
-                                                 (lambda ()
-                                                   (string-join
-                                                    (list
-                                                     (if
-                                                         (bound-and-true-p
-                                                          atomic-chrome-server-atomic-chrome)
-                                                         "Stop" "Start")
-                                                     "server"
-                                                     (and
-                                                      (bound-and-true-p
-                                                       atomic-chrome-server-atomic-chrome)
-                                                      (propertize "(on)" 'face
-                                                       'transient-value)))
-                                                    " "))
+                                                 km-buffer-atomic-chrome-suffix-description
                                                  atomic-chrome-toggle-server
                                                  :if-require
                                                  (atomic-chrome)
                                                  :transient nil)
                                                 ("."
-                                                 (lambda ()
-                                                   (string-join
-                                                    (list
-                                                     (if
-                                                         (bound-and-true-p
-                                                          atomic-chrome-max-text-size-for-selection-sync)
-                                                         "Disable" "Enable")
-                                                     "selection synchronization"
-                                                     (propertize
-                                                      (format "(%s)"
-                                                       (and
-                                                        (bound-and-true-p
-                                                         atomic-chrome-max-text-size-for-selection-sync)
-                                                        atomic-chrome-max-text-size-for-selection-sync))
-                                                      'face 'transient-value))
-                                                    " "))
+                                                 km-buffer-atomic-chrome-selection-description
                                                  atomic-chrome-toggle-selection
                                                  :if-require
                                                  (atomic-chrome)
@@ -105,14 +77,23 @@
                                                  :if-require
                                                  (file-info)
                                                  :inapt-if-nil buffer-file-name)
-                                                ("B" "Blamer Mode" blamer-mode
-                                                 :if-require
-                                                 (blamer)
-                                                 :inapt-if-nil buffer-file-name))
+                                                ("g c"
+                                                 "Show Commit Info at point"
+                                                 blamer-show-commit-info
+                                                 :if-require (blamer)
+                                                 :inapt-if-not
+                                                 km-buffer--git-exist-p)
+                                                ("g m"
+                                                 km-buffer-blamer-mode-description
+                                                 blamer-mode
+                                                 :if-require (blamer)
+                                                 :inapt-if-nil buffer-file-name
+                                                 :transient t))
   "Extra suffixes to add in `km-buffer-actions-menu'."
   :group 'km-buffer
   :type `(repeat
           (radio
+           (string :tag "Title")
            (list
             :tag "Suffix"
             (string :tag "Key")
@@ -244,12 +225,13 @@
              :tag "Inapt if variable"
              (list
               :inline t
-              (radio (const
-                      :format "%v: %d"
-                      :tag ":inapt-if-non-nil"
-                      :doc
-                      "Inapt if variable's value is non-nil."
-                      :inapt-if-non-nil)
+              (radio
+               (const
+                :format "%v: %d"
+                :tag ":inapt-if-non-nil"
+                :doc
+                "Inapt if variable's value is non-nil."
+                :inapt-if-non-nil)
                (const
                 :format "%v: %d"
                 :tag ":inapt-if-nil"
@@ -258,7 +240,7 @@
                 :inapt-if-nil))
               variable))
             (repeat
-             :tag "If"
+             :tag "If predicate"
              :inline t
              (list
               :inline t
@@ -272,33 +254,100 @@
                 :format "%v %d"
                 :tag ":if-not"
                 :doc "Enable if predicate returns nil."
-                :if-not)
-               (symbol :tag "other"))
+                :if-not))
               (choice (function :tag "Function")
                (symbol :tag "Symbol")
                (sexp :tag "Sexp"))))
             (repeat
-             :tag "Inapt if"
              :inline t
+             :tag "Inapt if predicate"
              (list
               :inline t
-              (radio (const
-                      :format "%v %d"
-                      :tag ":inapt-if"
-                      :doc
-                      "Inapt if predicate returns non-nil."
-                      :inapt-if)
+              (radio
+               (const
+                :format "%v %d"
+                :tag ":inapt-if"
+                :doc
+                "Inapt if predicatea returns non-nil."
+                :inapt-if)
                (const
                 :format "%v %d"
                 :tag ":inapt-if-not"
                 :doc
                 "Inapt if predicate returns nil."
-                :inapt-if-not)
-               (symbol :tag "other"))
-              (choice (function :tag "Function")
+                :inapt-if-not))
+              (choice
+               (function :tag "Function")
                (symbol :tag "Symbol")
-               (sexp :tag "Sexp")))))
-           (string :tag "Title"))))
+               (sexp :tag "Sexp"))))
+            (repeat
+             :inline t
+             (list
+              :inline t
+              (symbol :tag "other")
+              (choice
+               (function :tag "Function")
+               (symbol :tag "Symbol")
+               (sexp :tag "Sexp"))))))))
+
+(defun km-buffer--get-local-name (filename)
+  "Return local FILENAME if path is in the tramp format."
+  (if (and filename (file-remote-p default-directory) filename
+           (fboundp 'tramp-file-name-localname)
+           (fboundp 'tramp-dissect-file-name))
+      (tramp-file-name-localname (tramp-dissect-file-name filename))
+    filename))
+
+
+(defun km-buffer--git-exist-p ()
+  "Return t if .git exist."
+  (require 'vc-git)
+  (when-let* ((file-name (km-buffer--get-local-name (buffer-file-name))))
+    (vc-backend file-name)))
+
+
+(defun km-buffer-blamer-mode-description ()
+  "Return a string describing the status of `blamer-mode'."
+  (string-join
+   (list
+    "Auto Show Commit Info"
+    (and
+     (bound-and-true-p blamer-mode)
+     (propertize "(on)" 'face 'transient-value)))
+   " "))
+
+
+(defun km-buffer-atomic-chrome-suffix-description ()
+  "Return a string describing the state of the atomic-chrome server."
+  (string-join
+   (list
+    (if
+        (bound-and-true-p
+         atomic-chrome-server-atomic-chrome)
+        "Stop" "Start")
+    "server"
+    (and
+     (bound-and-true-p atomic-chrome-server-atomic-chrome)
+     (propertize "(on)" 'face 'transient-value)))
+   " "))
+
+(defun km-buffer-atomic-chrome-selection-suffix-description ()
+  "Return a string describing the state of selection synchronization."
+  (string-join
+   (list
+    (if
+        (bound-and-true-p
+         atomic-chrome-max-text-size-for-selection-sync)
+        "Disable" "Enable")
+    "selection synchronization"
+    (propertize
+     (format "(%s)"
+             (and
+              (bound-and-true-p
+               atomic-chrome-max-text-size-for-selection-sync)
+              atomic-chrome-max-text-size-for-selection-sync))
+     'face 'transient-value))
+   " "))
 
 ;;;###autoload (autoload 'km-buffer-pandoc-import-transient "km-buffer" nil t)
 (transient-define-prefix km-buffer-pandoc-import-transient ()
