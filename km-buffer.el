@@ -45,28 +45,74 @@
   :group 'km-buffer)
 
 
-(defcustom km-buffer-extra-transient-suffixes '("Pandoc"
+(defcustom km-buffer-extra-transient-suffixes '("Atomic chrome"
+                                                ("A"
+                                                 (lambda ()
+                                                   (string-join
+                                                    (list
+                                                     (if
+                                                         (bound-and-true-p
+                                                          atomic-chrome-server-atomic-chrome)
+                                                         "Stop" "Start")
+                                                     "server"
+                                                     (and
+                                                      (bound-and-true-p
+                                                       atomic-chrome-server-atomic-chrome)
+                                                      (propertize "(on)" 'face
+                                                       'transient-value)))
+                                                    " "))
+                                                 atomic-chrome-toggle-server
+                                                 :if-require
+                                                 (atomic-chrome)
+                                                 :transient nil)
+                                                ("."
+                                                 (lambda ()
+                                                   (string-join
+                                                    (list
+                                                     (if
+                                                         (bound-and-true-p
+                                                          atomic-chrome-max-text-size-for-selection-sync)
+                                                         "Disable" "Enable")
+                                                     "selection synchronization"
+                                                     (propertize
+                                                      (format "(%s)"
+                                                       (and
+                                                        (bound-and-true-p
+                                                         atomic-chrome-max-text-size-for-selection-sync)
+                                                        atomic-chrome-max-text-size-for-selection-sync))
+                                                      'face 'transient-value))
+                                                    " "))
+                                                 atomic-chrome-toggle-selection
+                                                 :if-require
+                                                 (atomic-chrome)
+                                                 :if-non-nil
+                                                 atomic-chrome-edit-mode
+                                                 :transient t)
+                                                "Pandoc"
                                                 ("p" "Pandoc Menu"
                                                  pandoc-mini-menu :if-require
                                                  (pandoc-mini))
                                                 ("o" "Pandoc Import to org"
                                                  org-pandoc-import-to-org
-                                                 :if-require (org-pandoc-import))
+                                                 :if-require
+                                                 (org-pandoc-import))
                                                 "Other"
                                                 ("C" "Chmod" chmod-menu
-                                                 :if-require (chmod-menu))
+                                                 :if-require
+                                                 (chmod-menu))
                                                 ("i" "Show File Info"
                                                  file-info-show
-                                                 :if-require (file-info)
+                                                 :if-require
+                                                 (file-info)
                                                  :inapt-if-nil buffer-file-name)
-                                                ("B" "Blamer Mode"
-                                                 blamer-mode
-                                                 :if-require (blamer)
+                                                ("B" "Blamer Mode" blamer-mode
+                                                 :if-require
+                                                 (blamer)
                                                  :inapt-if-nil buffer-file-name))
   "Extra suffixes to add in `km-buffer-actions-menu'."
   :group 'km-buffer
   :type `(repeat
-          (choice
+          (radio
            (list
             :tag "Suffix"
             (string :tag "Key")
