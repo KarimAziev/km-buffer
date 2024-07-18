@@ -872,7 +872,20 @@ Return the category metadatum as the type of the target."
 
 (defvar km-buffer-minibuffer-targets-finders
   '(km-buffer-minibuffer-ivy-selected-cand
+    km-buffer--vertico-selected
     km-buffer-get-default-top-minibuffer-completion))
+
+(declare-function vertico--candidate "ext:vertico")
+(declare-function vertico--update "ext:vertico")
+
+(defun km-buffer--vertico-selected ()
+  "Target the currently selected item in Vertico.
+Return the category metadatum as the type of the target."
+  (when (bound-and-true-p vertico--input)
+    (vertico--update)
+    (cons
+     (completion-metadata-get (km-buffer-minibuffer-get-metadata) 'category)
+     (vertico--candidate))))
 
 (defun km-buffer-minibuffer-get-current-candidate ()
   "Return cons filename for current completion candidate."
