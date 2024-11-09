@@ -410,7 +410,7 @@
 (defun km-buffer-reload-current-buffer ()
   "Kill current buffer and reopen its `buffer-file-name."
   (interactive)
-  (when-let ((file buffer-file-name)
+  (when-let* ((file buffer-file-name)
              (buff (current-buffer))
              (pos (point)))
     (when (or (not (buffer-modified-p))
@@ -563,7 +563,7 @@ If DONT-CREATE is non nil, don't create it if it doesn't exists."
                            (if (file-directory-p it)
                                (directory-files it t regex)
                              (list it))))
-                       (when-let ((parent (km-buffer-get-parent-target-dir t)))
+                       (when-let* ((parent (km-buffer-get-parent-target-dir t)))
                          (let ((top-parent (ignore-errors
                                              (file-name-parent-directory
                                               parent))))
@@ -689,7 +689,7 @@ See also `km-buffer-backup-time-format'."
       (when (and km-buffer-backup-directory
                  (not (km-buffer-backup-directory-exists-p)))
         (make-directory km-buffer-backup-directory t))
-      (when-let ((dir (and new-file-name-base
+      (when-let* ((dir (and new-file-name-base
                            (km-buffer-get-parent-target-dir))))
         (let ((backup-name
                (expand-file-name new-file-name-base dir)))
@@ -702,7 +702,7 @@ See also `km-buffer-backup-time-format'."
 (defun km-buffer--kill-fn-result (fn &rest args)
   "Kill result of applying FN with ARGS or show ERR-MESSAGE."
   (if buffer-file-name
-      (if-let ((result (apply fn args)))
+      (if-let* ((result (apply fn args)))
           (progn (kill-new result)
                  (message "Copied %s" result))
         (message "No result"))
@@ -712,7 +712,7 @@ See also `km-buffer-backup-time-format'."
   "Convert buffer filename to be relative to project root directory."
   (require 'project)
   (require 'vc nil t)
-  (when-let ((curr (ignore-errors (when (fboundp 'project-root)
+  (when-let* ((curr (ignore-errors (when (fboundp 'project-root)
                                     (project-root
                                      (project-current))))))
     (file-relative-name
@@ -893,7 +893,7 @@ Return the category metadatum as the type of the target."
     (run-hook-wrapped
      'km-buffer-minibuffer-targets-finders
      (lambda (fun)
-       (when-let ((result (funcall fun)))
+       (when-let* ((result (funcall fun)))
          (when (and (cdr-safe result)
                     (stringp (cdr-safe result))
                     (not (string-empty-p (cdr-safe result))))
@@ -910,7 +910,7 @@ Return the category metadatum as the type of the target."
 
 (defun km-buffer-minibuffer-web-restore-completions-wind ()
   "Restore *Completions* window height."
-  (when-let ((win (get-buffer-window "*Completions*" 0)))
+  (when-let* ((win (get-buffer-window "*Completions*" 0)))
     (when (and (boundp 'completions-max-height)
                (numberp completions-max-height))
       (fit-window-to-buffer win completions-max-height))))
@@ -974,7 +974,7 @@ INHERIT-INPUT-METHOD."
                                     (buffer-list))))
     (delete-dups
      (remove nil (mapcar (lambda (buff)
-                           (when-let ((dir (buffer-local-value
+                           (when-let* ((dir (buffer-local-value
                                             'default-directory
                                             buff)))
                              (unless (file-remote-p dir)
@@ -1165,7 +1165,7 @@ file."
 (defun km-buffer-find-emacs-related-source-file ()
   "Locate and open the source file associated with the current buffer."
   (interactive)
-  (when-let ((source-file (km-buffer-get-emacs-source-mirror-file
+  (when-let* ((source-file (km-buffer-get-emacs-source-mirror-file
                            buffer-file-name))
              (pos (point)))
     (find-file source-file)
