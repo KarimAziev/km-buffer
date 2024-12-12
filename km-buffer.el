@@ -803,10 +803,11 @@ See also `km-buffer-backup-time-format'."
     (if (and buffer-file-name
              (member (file-name-extension buffer-file-name) '("sqlite" "db")))
         (sqlite-mode-open-file buffer-file-name)
-      (read-file-name "SQLite file name: "
-                      (when buffer-file-name
-                        (file-name-nondirectory
-                         buffer-file-name))))))
+      (sqlite-mode-open-file
+       (read-file-name "SQLite file name: "
+                       (when buffer-file-name
+                         (file-name-nondirectory
+                          buffer-file-name)))))))
 
 (defun km-buffer-minibuffer-get-metadata ()
   "Return current minibuffer completion metadata."
