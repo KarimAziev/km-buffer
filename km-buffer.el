@@ -391,16 +391,29 @@
         ("lo" "latex-to-org" org-pandoc-import-latex-to-org)
         ("ra" "rst-as-org" org-pandoc-import-rst-as-org)]])
 
+(defun km-buffer--buffer-empty-p ()
+  "Check if the current buffer is empty or contains only whitespace."
+  (not
+   (and (> (buffer-size) 0)
+        (save-excursion
+          (save-restriction
+            (widen)
+            (or (re-search-forward "[^\s\t\n]" nil t 1)
+                (re-search-backward "[^\s\t\n]" nil t 1)))))))
+
 ;;;###autoload
 (defun km-buffer-delete-current-buffer-file ()
-  "Remove file and kill current buffer without prompt."
+  "Remove file and kill current buffer without prompt.
+
+Also make a backup if the buffer is not empty."
   (interactive)
   (let* ((buffer (current-buffer))
          (filename (buffer-file-name buffer)))
     (when (and buffer (buffer-live-p buffer))
       (when filename
         (save-buffer)
-        (km-buffer-make-backup))
+        (unless (km-buffer--buffer-empty-p)
+          (km-buffer-make-backup)))
       (kill-buffer buffer))
     (when filename
       (delete-file filename t))))
